@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::error::Result;
 use crate::segmentation;
 use ab_glyph::{FontRef, PxScale};
@@ -9,11 +10,9 @@ use opencv::imgproc::{
     COLOR_BGR2RGB, COLOR_RGB2BGR, INTER_LINEAR, cvt_color, resize,
 };
 use opencv::prelude::*;
+use std::path::Path;
 
-const FONT_DATA: &[u8] =
-    include_bytes!("/usr/share/fonts/TTF/InputSansCompressedNerdFont-Bold.ttf");
-
-pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
+pub fn blur_background(image: DynamicImage, config: &Config) -> Result<DynamicImage> {
     let rgb_image = image.to_rgb8();
     let (width, height) = rgb_image.dimensions();
     let image_data = rgb_image.into_raw();
@@ -196,8 +195,8 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
     let rgb_bytes: Vec<u8> = rgb_mat.data_bytes()?.to_vec();
 
     // Load background image using image crate
-    let bg_image_path =
-        std::path::Path::new("/home/swn/.local/share/backgrounds/GoogleMeetBackground.png");
+    let bg_image_path = Path::new(&config.background_path);
+    tracing::debug!(path = %bg_image_path.display(), "Loading background image");
     let bg_dynamic = image::open(bg_image_path)?;
     let bg_resized = bg_dynamic.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
     let bg_rgb = bg_resized.to_rgb8();
@@ -260,11 +259,16 @@ pub fn overlay_chyron(
     repo_name: &str,
     stats: &str,
     sha: &str,
+    config: &Config,
 ) -> Result<DynamicImage> {
-    let font = FontRef::try_from_slice(FONT_DATA).map_err(|e| {
-        std::io::Error::other(
-            format!("Failed to load font: {}", e),
-        )
+    // Load font from configured path - need to leak for FontRef lifetime
+    let font_data = std::fs::read(&config.font_path).map_err(|e| {
+        std::io::Error::other(format!("Failed to read font from {}: {}", config.font_path, e))
+    })?;
+
+    let font_data_static: &'static [u8] = Box::leak(font_data.into_boxed_slice());
+    let font = FontRef::try_from_slice(font_data_static).map_err(|e| {
+        std::io::Error::other(format!("Failed to parse font: {}", e))
     })?;
 
     // Work directly with RGBA if already RGBA, otherwise convert
@@ -278,7 +282,7 @@ pub fn overlay_chyron(
     let y_start = height - chyron_height;
 
     // Manually apply semi-transparent black with proper alpha blending
-    let overlay_alpha = 0.75;
+    let overlay_alpha = config.chyron_opacity;
     for y in y_start..height {
         for x in 0..width {
             let pixel = rgba_image.get_pixel_mut(x, y);
@@ -298,8 +302,8 @@ pub fn overlay_chyron(
     let yellow = Rgba([255u8, 255u8, 0u8, 255u8]);
     let grey = Rgba([180u8, 180u8, 180u8, 255u8]);
 
-    let title_scale = PxScale::from(28.0);
-    let info_scale = PxScale::from(18.0);
+    let title_scale = PxScale::from(config.title_font_size);
+    let info_scale = PxScale::from(config.info_font_size);
 
     let title_y = y_start as i32 + 10;
     draw_text_mut(
@@ -334,14 +338,15 @@ pub fn overlay_chyron(
         let mut total_width = 0;
 
         for part in parts.iter() {
-            if (part.contains("deletion") || part.contains("insertion"))
-                && let Some(space_pos) = part.find(' ') {
+            if part.contains("deletion") || part.contains("insertion") {
+                if let Some(space_pos) = part.find(' ') {
                     let num = &part[..space_pos];
                     total_width += (num.len() as f32 * 10.0) as i32; // number width
                     total_width += 5; // gap after number
                     total_width += 10; // +/- symbol
                     total_width += 15; // gap before next item
                 }
+            }
         }
         (width as i32) - 30 - total_width
     } else {

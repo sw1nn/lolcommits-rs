@@ -2,6 +2,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 mod camera;
+mod config;
 mod error;
 mod git;
 mod image_processor;
@@ -32,6 +33,10 @@ fn main() -> Result<()> {
 
     tracing::info!(message = %args.message, sha = %args.sha, "Starting lolcommits-rs");
 
+    // Load configuration
+    let config = config::Config::load()?;
+    tracing::debug!(?config, "Loaded configuration");
+
     let repo_name = git::get_repo_name()?;
     let diff_stat = git::get_diff_shortstat()?;
     tracing::info!(repo_name = %repo_name, diff_stat = %diff_stat, "Got git info");
@@ -39,7 +44,7 @@ fn main() -> Result<()> {
     let image = camera::capture_image()?;
     tracing::info!("Captured image from webcam");
 
-    let blurred_image = image_processor::blur_background(image)?;
+    let blurred_image = image_processor::blur_background(image, &config)?;
     tracing::info!("Background processed");
 
     let commit_type = parse_commit_type(&args.message);
@@ -55,6 +60,7 @@ fn main() -> Result<()> {
         &repo_name,
         &diff_stat,
         &args.sha,
+        &config,
     )?;
     tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
 
@@ -95,10 +101,11 @@ fn parse_commit_scope(message: &str) -> String {
     if let Some(colon_pos) = message.find(':') {
         let prefix = &message[..colon_pos];
 
-        if let Some(open_paren) = prefix.find('(')
-            && let Some(close_paren) = prefix.find(')') {
+        if let Some(open_paren) = prefix.find('(') {
+            if let Some(close_paren) = prefix.find(')') {
                 return prefix[open_paren + 1..close_paren].trim().to_string();
             }
+        }
     }
 
     String::new()

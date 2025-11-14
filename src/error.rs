@@ -19,8 +19,18 @@ pub enum LolcommitsError {
     #[from]
     OpenCV(opencv::Error),
 
+    #[display("Not in a git repository")]
     NotInGitRepo,
+
+    #[display("Could not determine home directory")]
     NoHomeDirectory,
+
+    #[display("Could not determine repository name")]
     NoRepoName,
+
+    #[display("Git command failed")]
     GitCommandFailed,
+
+    #[display("Configuration error: {message}")]
+    ConfigError { message: String },
 }
