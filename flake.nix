@@ -4,12 +4,15 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs { inherit system overlays; };
+        rustVersion = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
       in
       {
         devShells.default = pkgs.mkShell {
@@ -20,12 +23,10 @@
           ];
 
           buildInputs = with pkgs; [
-            # Rust toolchain
-            rustc
-            cargo
-            rustfmt
-            clippy
+            # Rust toolchain from rust-toolchain.toml
+            (rustVersion.override { extensions = [ "rust-src" "llvm-tools-preview" ]; })
             cargo-llvm-cov
+            rust-analyzer
 
             # OpenCV with clang-runtime feature
             opencv
