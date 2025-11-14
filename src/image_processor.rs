@@ -10,7 +10,74 @@ use opencv::imgproc::{
     COLOR_BGR2RGB, COLOR_RGB2BGR, INTER_LINEAR, cvt_color, resize,
 };
 use opencv::prelude::*;
-use std::path::Path;
+use std::env;
+use std::path::{Path, PathBuf};
+
+/// Resolve background image path according to XDG Base Directory specification
+///
+/// If the path starts with '/', treat it as an absolute path.
+/// Otherwise, treat it as a basename and search for {basename}.png in XDG_DATA_DIRS
+/// (typically /usr/local/share:/usr/share) and XDG_DATA_HOME.
+fn resolve_background_path(path_spec: &str) -> Result<PathBuf> {
+    // If it starts with '/', it's an absolute path
+    if path_spec.starts_with('/') {
+        let path = PathBuf::from(path_spec);
+        if path.exists() {
+            return Ok(path);
+        } else {
+            return Err(std::io::Error::other(
+                format!("Background image not found: {}", path_spec)
+            ).into());
+        }
+    }
+
+    // Otherwise, it's a basename - search in XDG data directories for {basename}.png
+    let filename = format!("{}.png", path_spec);
+    let mut search_dirs = Vec::new();
+
+    // First, add XDG_DATA_HOME (typically ~/.local/share)
+    if let Ok(data_home) = env::var("XDG_DATA_HOME") {
+        search_dirs.push(PathBuf::from(data_home));
+    } else if let Ok(home) = env::var("HOME") {
+        search_dirs.push(PathBuf::from(home).join(".local/share"));
+    }
+
+    // Then add XDG_DATA_DIRS (typically /usr/local/share:/usr/share)
+    if let Ok(data_dirs) = env::var("XDG_DATA_DIRS") {
+        for dir in data_dirs.split(':') {
+            if !dir.is_empty() {
+                search_dirs.push(PathBuf::from(dir));
+            }
+        }
+    } else {
+        // Default XDG_DATA_DIRS if not set
+        search_dirs.push(PathBuf::from("/usr/local/share"));
+        search_dirs.push(PathBuf::from("/usr/share"));
+    }
+
+    // Search for the file in each directory
+    for data_dir in &search_dirs {
+        let candidates = [
+            data_dir.join(&filename),
+            data_dir.join("backgrounds").join(&filename),
+            data_dir.join("pixmaps").join(&filename),
+            data_dir.join("wallpapers").join(&filename),
+        ];
+
+        for path in &candidates {
+            tracing::debug!(path = %path.display(), "Checking for background image");
+            if path.exists() && path.is_file() {
+                tracing::info!(path = %path.display(), "Found background image");
+                return Ok(path.clone());
+            }
+        }
+    }
+
+    Err(std::io::Error::other(
+        format!("Background image '{}.png' not found in XDG data directories: {:?}",
+                path_spec, search_dirs)
+    ).into())
+}
 
 pub fn replace_background(image: DynamicImage, config: &Config) -> Result<DynamicImage> {
     let rgb_image = image.to_rgb8();
@@ -195,9 +262,9 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
     let rgb_bytes: Vec<u8> = rgb_mat.data_bytes()?.to_vec();
 
     // Load background image using image crate
-    let bg_image_path = Path::new(&config.background_path);
+    let bg_image_path = resolve_background_path(&config.background_path)?;
     tracing::debug!(path = %bg_image_path.display(), "Loading background image");
-    let bg_dynamic = image::open(bg_image_path)?;
+    let bg_dynamic = image::open(&bg_image_path)?;
     let bg_resized = bg_dynamic.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
     let bg_rgb = bg_resized.to_rgb8();
     let bg_bytes = bg_rgb.as_raw();

@@ -12,7 +12,17 @@ font_path = "/usr/share/fonts/TTF/InputSansCompressedNerdFont-Bold.ttf"
 
 # Path to the background image
 # This image will be composited behind the segmented person
-background_path = "/home/swn/.local/share/backgrounds/GoogleMeetBackground.png"
+#
+# If the path starts with '/', it's treated as an absolute path.
+# Otherwise, it's treated as a basename and will search for {basename}.png in:
+#   - XDG_DATA_HOME (typically ~/.local/share)
+#   - XDG_DATA_DIRS (typically /usr/local/share:/usr/share)
+# Searching in subdirectories: backgrounds/, pixmaps/, wallpapers/, or the root
+#
+# Examples:
+#   background_path = "/home/user/.local/share/backgrounds/my-bg.png"  (absolute path)
+#   background_path = "GoogleMeetBackground"                           (searches for GoogleMeetBackground.png)
+background_path = "GoogleMeetBackground"
 
 # Camera index (0 is usually the default webcam)
 # If you have multiple cameras, try 1, 2, etc.
