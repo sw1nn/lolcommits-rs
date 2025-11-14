@@ -9,10 +9,12 @@ const MODEL_URL: &str = "https://github.com/danielgatis/rembg/releases/download/
 const MODEL_FILENAME: &str = "u2net.onnx";
 
 pub fn get_model_path() -> Result<PathBuf> {
-    let base_dirs = BaseDirs::new()
-        .ok_or(crate::error::LolcommitsError::NoHomeDirectory)?;
+    let base_dirs = BaseDirs::new().ok_or(crate::error::LolcommitsError::NoHomeDirectory)?;
 
-    let models_dir = base_dirs.data_local_dir().join("lolcommits-rs").join("models");
+    let models_dir = base_dirs
+        .data_local_dir()
+        .join("lolcommits-rs")
+        .join("models");
     fs::create_dir_all(&models_dir)?;
 
     let model_path = models_dir.join(MODEL_FILENAME);
@@ -27,11 +29,17 @@ pub fn get_model_path() -> Result<PathBuf> {
 }
 
 fn download_model(path: &PathBuf) -> Result<()> {
-    let response = reqwest::blocking::get(MODEL_URL)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to download model: {}", e)))?;
+    let response = reqwest::blocking::get(MODEL_URL).map_err(|e| {
+        std::io::Error::other(
+            format!("Failed to download model: {}", e),
+        )
+    })?;
 
-    let bytes = response.bytes()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to read response: {}", e)))?;
+    let bytes = response.bytes().map_err(|e| {
+        std::io::Error::other(
+            format!("Failed to read response: {}", e),
+        )
+    })?;
 
     fs::write(path, bytes)?;
 

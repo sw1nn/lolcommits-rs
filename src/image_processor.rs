@@ -1,14 +1,17 @@
 use crate::error::Result;
+use crate::segmentation;
 use ab_glyph::{FontRef, PxScale};
 use image::{DynamicImage, Rgba};
 use imageproc::drawing::draw_text_mut;
-use opencv::core::{Mat, Size, Vec3b, AlgorithmHint, BORDER_DEFAULT, Scalar, CV_32F};
-use opencv::imgproc::{gaussian_blur, resize, INTER_LINEAR, cvt_color, COLOR_RGB2BGR, COLOR_BGR2RGB};
-use opencv::dnn::{read_net_from_onnx, DNN_BACKEND_OPENCV, DNN_TARGET_CPU};
+use opencv::core::{AlgorithmHint, CV_32F, Mat, Scalar, Size, Vec3b};
+use opencv::dnn::{DNN_BACKEND_OPENCV, DNN_TARGET_CPU, read_net_from_onnx};
+use opencv::imgproc::{
+    COLOR_BGR2RGB, COLOR_RGB2BGR, INTER_LINEAR, cvt_color, resize,
+};
 use opencv::prelude::*;
-use crate::segmentation;
 
-const FONT_DATA: &[u8] = include_bytes!("/usr/share/fonts/TTF/InputSansCompressedNerdFont-Bold.ttf");
+const FONT_DATA: &[u8] =
+    include_bytes!("/usr/share/fonts/TTF/InputSansCompressedNerdFont-Bold.ttf");
 
 pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
     let rgb_image = image.to_rgb8();
@@ -18,17 +21,27 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
     // Convert Vec<u8> to Vec<Vec3b> for opencv - keep RGB order initially
     let vec3b_data: Vec<Vec3b> = image_data
         .chunks_exact(3)
-        .map(|chunk| Vec3b::from([chunk[0], chunk[1], chunk[2]]))  // R, G, B as-is
+        .map(|chunk| Vec3b::from([chunk[0], chunk[1], chunk[2]])) // R, G, B as-is
         .collect();
 
     let temp_mat = Mat::from_slice(&vec3b_data)?;
     let rgb_mat = temp_mat.reshape(3, height as i32)?;
 
-    tracing::debug!("Input RGB mat size: {:?}, type: {}", rgb_mat.size()?, rgb_mat.typ());
+    tracing::debug!(
+        "Input RGB mat size: {:?}, type: {}",
+        rgb_mat.size()?,
+        rgb_mat.typ()
+    );
 
     // Use OpenCV's cvt_color to properly convert RGB to BGR
     let mut bgr_mat = Mat::default();
-    cvt_color(&rgb_mat, &mut bgr_mat, COLOR_RGB2BGR, 0, AlgorithmHint::ALGO_HINT_DEFAULT)?;
+    cvt_color(
+        &rgb_mat,
+        &mut bgr_mat,
+        COLOR_RGB2BGR,
+        0,
+        AlgorithmHint::ALGO_HINT_DEFAULT,
+    )?;
 
     tracing::debug!("After RGB->BGR conversion, mat type: {}", bgr_mat.typ());
 
@@ -42,7 +55,14 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
 
     // Prepare input: resize to 320x320 and normalize for U2Net
     let mut resized = Mat::default();
-    resize(&bgr_mat, &mut resized, Size::new(320, 320), 0.0, 0.0, INTER_LINEAR)?;
+    resize(
+        &bgr_mat,
+        &mut resized,
+        Size::new(320, 320),
+        0.0,
+        0.0,
+        INTER_LINEAR,
+    )?;
 
     let mut input_float = Mat::default();
     resized.convert_to(&mut input_float, CV_32F, 1.0 / 255.0, 0.0)?;
@@ -53,7 +73,7 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
         1.0,
         Size::new(320, 320),
         Scalar::default(),
-        true,  // swapRB: true to convert BGR to RGB for model
+        true, // swapRB: true to convert BGR to RGB for model
         false,
         CV_32F,
     )?;
@@ -74,7 +94,7 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
     }
 
     if outputs.is_empty() {
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, "No output from model").into());
+        return Err(std::io::Error::other("No output from model").into());
     }
 
     // Use the first output (main segmentation mask) - shape is [1, 1, 320, 320]
@@ -101,7 +121,14 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
 
     // Resize mask back to original size
     let mut mask_full = Mat::default();
-    resize(&mask_320, &mut mask_full, Size::new(width as i32, height as i32), 0.0, 0.0, INTER_LINEAR)?;
+    resize(
+        &mask_320,
+        &mut mask_full,
+        Size::new(width as i32, height as i32),
+        0.0,
+        0.0,
+        INTER_LINEAR,
+    )?;
 
     tracing::debug!("Mask full type: {}", mask_full.typ());
 
@@ -128,7 +155,8 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
         for x in 0..width {
             let idx = (y * width + x) as usize;
             let weight = mask_values[idx];
-            if weight > 0.1 { // Only consider pixels that are likely person
+            if weight > 0.1 {
+                // Only consider pixels that are likely person
                 sum_x += x as f32 * weight;
                 sum_y += y as f32 * weight;
                 total_weight += weight;
@@ -158,11 +186,18 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
 
     // Convert BGR back to RGB
     let mut rgb_mat = Mat::default();
-    cvt_color(&bgr_mat, &mut rgb_mat, COLOR_BGR2RGB, 0, AlgorithmHint::ALGO_HINT_DEFAULT)?;
+    cvt_color(
+        &bgr_mat,
+        &mut rgb_mat,
+        COLOR_BGR2RGB,
+        0,
+        AlgorithmHint::ALGO_HINT_DEFAULT,
+    )?;
     let rgb_bytes: Vec<u8> = rgb_mat.data_bytes()?.to_vec();
 
     // Load background image using image crate
-    let bg_image_path = std::path::Path::new("/home/swn/.local/share/backgrounds/GoogleMeetBackground.png");
+    let bg_image_path =
+        std::path::Path::new("/home/swn/.local/share/backgrounds/GoogleMeetBackground.png");
     let bg_dynamic = image::open(bg_image_path)?;
     let bg_resized = bg_dynamic.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
     let bg_rgb = bg_resized.to_rgb8();
@@ -181,7 +216,7 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
             // Check if source position is within bounds
             if src_x >= 0 && src_x < width as i32 && src_y >= 0 && src_y < height as i32 {
                 let src_idx = (src_y as u32 * width + src_x as u32) as usize;
-                let alpha = mask_values[src_idx];  // 0-1 range
+                let alpha = mask_values[src_idx]; // 0-1 range
                 let inv_alpha = 1.0 - alpha;
 
                 let fg_r = rgb_bytes[src_idx * 3] as f32;
@@ -208,8 +243,11 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
         }
     }
 
-    let result_image = image::RgbImage::from_raw(width, height, result_data)
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Failed to create composited image"))?;
+    let result_image = image::RgbImage::from_raw(width, height, result_data).ok_or_else(|| {
+        std::io::Error::other(
+            "Failed to create composited image",
+        )
+    })?;
 
     Ok(DynamicImage::ImageRgb8(result_image))
 }
@@ -223,8 +261,11 @@ pub fn overlay_chyron(
     stats: &str,
     sha: &str,
 ) -> Result<DynamicImage> {
-    let font = FontRef::try_from_slice(FONT_DATA)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to load font: {}", e)))?;
+    let font = FontRef::try_from_slice(FONT_DATA).map_err(|e| {
+        std::io::Error::other(
+            format!("Failed to load font: {}", e),
+        )
+    })?;
 
     // Work directly with RGBA if already RGBA, otherwise convert
     let mut rgba_image = match image {
@@ -293,15 +334,14 @@ pub fn overlay_chyron(
         let mut total_width = 0;
 
         for part in parts.iter() {
-            if part.contains("deletion") || part.contains("insertion") {
-                if let Some(space_pos) = part.find(' ') {
+            if (part.contains("deletion") || part.contains("insertion"))
+                && let Some(space_pos) = part.find(' ') {
                     let num = &part[..space_pos];
                     total_width += (num.len() as f32 * 10.0) as i32; // number width
                     total_width += 5; // gap after number
                     total_width += 10; // +/- symbol
                     total_width += 15; // gap before next item
                 }
-            }
         }
         (width as i32) - 30 - total_width
     } else {
@@ -311,7 +351,15 @@ pub fn overlay_chyron(
     // Draw SHA on the right side of the title line, left-aligned with stats
     if !sha.is_empty() {
         let sha_short = if sha.len() > 7 { &sha[..7] } else { sha };
-        draw_text_mut(&mut rgba_image, yellow, stats_start_x, title_y, title_scale, &font, sha_short);
+        draw_text_mut(
+            &mut rgba_image,
+            yellow,
+            stats_start_x,
+            title_y,
+            title_scale,
+            &font,
+            sha_short,
+        );
     }
 
     // Draw colorized stats on the right side, left-aligned with SHA
@@ -332,11 +380,27 @@ pub fn overlay_chyron(
                     let num = &part[..space_pos];
 
                     // Draw "+"
-                    draw_text_mut(&mut rgba_image, green, x_offset, info_y, info_scale, &font, "+");
+                    draw_text_mut(
+                        &mut rgba_image,
+                        green,
+                        x_offset,
+                        info_y,
+                        info_scale,
+                        &font,
+                        "+",
+                    );
                     x_offset += 10;
 
                     // Draw number
-                    draw_text_mut(&mut rgba_image, green, x_offset, info_y, info_scale, &font, num);
+                    draw_text_mut(
+                        &mut rgba_image,
+                        green,
+                        x_offset,
+                        info_y,
+                        info_scale,
+                        &font,
+                        num,
+                    );
                     let text_width = (num.len() as f32 * 10.0) as i32;
                     x_offset += text_width;
                     x_offset += 20; // gap before next item
@@ -347,11 +411,27 @@ pub fn overlay_chyron(
                     let num = &part[..space_pos];
 
                     // Draw "-"
-                    draw_text_mut(&mut rgba_image, red, x_offset, info_y, info_scale, &font, "-");
+                    draw_text_mut(
+                        &mut rgba_image,
+                        red,
+                        x_offset,
+                        info_y,
+                        info_scale,
+                        &font,
+                        "-",
+                    );
                     x_offset += 10;
 
                     // Draw number
-                    draw_text_mut(&mut rgba_image, red, x_offset, info_y, info_scale, &font, num);
+                    draw_text_mut(
+                        &mut rgba_image,
+                        red,
+                        x_offset,
+                        info_y,
+                        info_scale,
+                        &font,
+                        num,
+                    );
                     let text_width = (num.len() as f32 * 10.0) as i32;
                     x_offset += text_width;
                     x_offset += 20; // gap before next item

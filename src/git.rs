@@ -21,7 +21,7 @@ pub fn get_diff_shortstat() -> Result<String> {
         .output()?;
 
     if !output.status.success() {
-        return Err(LolcommitsError::GitCommandFailed.into());
+        return Err(LolcommitsError::GitCommandFailed);
     }
 
     let stat = String::from_utf8_lossy(&output.stdout).trim().to_string();

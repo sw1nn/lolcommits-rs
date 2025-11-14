@@ -1,9 +1,9 @@
 use clap::Parser;
 use std::path::PathBuf;
 
+mod camera;
 mod error;
 mod git;
-mod camera;
 mod image_processor;
 mod segmentation;
 
@@ -24,7 +24,7 @@ fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
 
@@ -54,7 +54,7 @@ fn main() -> Result<()> {
         &scope,
         &repo_name,
         &diff_stat,
-        &args.sha
+        &args.sha,
     )?;
     tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
 
@@ -95,19 +95,17 @@ fn parse_commit_scope(message: &str) -> String {
     if let Some(colon_pos) = message.find(':') {
         let prefix = &message[..colon_pos];
 
-        if let Some(open_paren) = prefix.find('(') {
-            if let Some(close_paren) = prefix.find(')') {
+        if let Some(open_paren) = prefix.find('(')
+            && let Some(close_paren) = prefix.find(')') {
                 return prefix[open_paren + 1..close_paren].trim().to_string();
             }
-        }
     }
 
     String::new()
 }
 
 fn get_output_path(repo_name: &str, commit_sha: &str) -> Result<PathBuf> {
-    let base_dir = directories::BaseDirs::new()
-        .ok_or(error::LolcommitsError::NoHomeDirectory)?;
+    let base_dir = directories::BaseDirs::new().ok_or(error::LolcommitsError::NoHomeDirectory)?;
 
     let data_dir = base_dir.data_local_dir().join("lolcommits-rs");
     std::fs::create_dir_all(&data_dir)?;

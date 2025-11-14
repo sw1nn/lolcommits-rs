@@ -1,14 +1,15 @@
 use crate::error::Result;
 use image::DynamicImage;
+use nokhwa::Camera;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
-use nokhwa::Camera;
 
 pub fn capture_image() -> Result<DynamicImage> {
     tracing::debug!("Initializing camera");
 
     let index = CameraIndex::Index(0);
-    let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+    let requested =
+        RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
     let mut camera = Camera::new(index, requested)?;
 
