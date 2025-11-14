@@ -25,6 +25,7 @@
             cargo
             rustfmt
             clippy
+            cargo-llvm-cov
 
             # OpenCV with clang-runtime feature
             opencv
@@ -37,6 +38,8 @@
           ];
 
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+          LLVM_COV = "${pkgs.llvmPackages.llvm}/bin/llvm-cov";
+          LLVM_PROFDATA = "${pkgs.llvmPackages.llvm}/bin/llvm-profdata";
         };
       }
     );
