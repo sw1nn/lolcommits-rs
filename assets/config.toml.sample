@@ -1,0 +1,37 @@
+# lolcommits-rs configuration file
+#
+# Place this file at: ~/.config/lolcommits-rs/config.toml
+# (or $XDG_CONFIG_HOME/lolcommits-rs/config.toml)
+
+# Path to the font file to use for text rendering
+# Common locations:
+#   - Linux: /usr/share/fonts/TTF/
+#   - macOS: /System/Library/Fonts/ or ~/Library/Fonts/
+#   - Windows: C:\Windows\Fonts\
+font_path = "/usr/share/fonts/TTF/InputSansCompressedNerdFont-Bold.ttf"
+
+# Path to the background image
+# This image will be composited behind the segmented person
+background_path = "/home/swn/.local/share/backgrounds/GoogleMeetBackground.png"
+
+# Camera index (0 is usually the default webcam)
+# If you have multiple cameras, try 1, 2, etc.
+camera_index = 0
+
+# Number of warmup frames to capture before taking the final photo
+# This helps the camera adjust exposure and white balance
+camera_warmup_frames = 3
+
+# Opacity of the chyron overlay (0.0 = fully transparent, 1.0 = fully opaque)
+# Range: 0.0 to 1.0
+chyron_opacity = 0.75
+
+# Font size for the title line in the chyron (commit message)
+title_font_size = 28.0
+
+# Font size for the info line in the chyron (commit type, scope, repo name)
+info_font_size = 18.0
+
+# Whether to center the person in the frame using mask center-of-mass
+# If true, the image will be translated to center the detected person
+center_person = true

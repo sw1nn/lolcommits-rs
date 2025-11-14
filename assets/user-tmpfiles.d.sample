@@ -1,0 +1,23 @@
+# systemd-tmpfiles configuration for lolcommits-rs
+#
+# This file can be placed in one of the following locations:
+#   - ~/.config/user-tmpfiles.d/lolcommits-rs.conf  (user-specific)
+#   - /etc/tmpfiles.d/lolcommits-rs.conf            (system-wide)
+#
+# After placing the file, run:
+#   systemd-tmpfiles --user --clean  (for user installation)
+# Or set up a systemd timer to run periodically.
+#
+# Format: Type Path Mode UID GID Age Argument
+# Type 'e': Adjust access mode, group and user ownership of a file or directory if it exists
+# Age format: d (days), w (weeks), m (months), y (years)
+#
+# Delete lolcommit images older than 30 days
+e %h/.local/share/lolcommits-rs/*.png - - - 30d -
+
+# Alternative: Delete everything in the directory older than 30 days
+# e %h/.local/share/lolcommits-rs/* - - - 30d -
+
+# Alternative: Clean up cache (model) older than 90 days
+# (Not recommended as the model is large and rarely changes)
+# e %h/.cache/lolcommits-rs/* - - - 90d -
