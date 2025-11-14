@@ -1,0 +1,10 @@
+feat: initial implementation of lolcommits-rs
+
+Implement basic lolcommits clone in Rust with:
+- Webcam capture using nokhwa
+- Image text overlay with ab_glyph
+- Git repository detection and commit SHA extraction
+- Custom error handling with derive_more
+- CLI argument parsing with clap
+- Structured logging with tracing
+- Output to ~/.local/share/lolcommits-rs/
