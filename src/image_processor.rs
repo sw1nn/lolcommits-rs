@@ -197,6 +197,7 @@ pub fn overlay_chyron(
 
     let white = Rgba([255u8, 255u8, 255u8, 255u8]);
     let yellow = Rgba([255u8, 255u8, 0u8, 255u8]);
+    let grey = Rgba([180u8, 180u8, 180u8, 255u8]);
 
     let title_scale = PxScale::from(28.0);
     let info_scale = PxScale::from(18.0);
@@ -220,7 +221,7 @@ pub fn overlay_chyron(
     };
     draw_text_mut(
         &mut rgba_image,
-        yellow,
+        grey,
         15,
         info_y,
         info_scale,
