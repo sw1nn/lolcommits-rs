@@ -44,12 +44,14 @@ fn main() -> Result<()> {
 
     let commit_type = parse_commit_type(&args.message);
     let first_line = args.message.lines().next().unwrap_or(&args.message);
+    let message_without_prefix = strip_commit_prefix(first_line);
+    let scope = parse_commit_scope(first_line);
 
     let processed_image = image_processor::overlay_chyron(
         blurred_image,
-        first_line,
+        &message_without_prefix,
         &commit_type,
-        &args.sha,
+        &scope,
         &repo_name
     )?;
     tracing::info!(commit_type = %commit_type, "Overlaid chyron on image");
@@ -77,6 +79,28 @@ fn parse_commit_type(message: &str) -> String {
     } else {
         "commit".to_string()
     }
+}
+
+fn strip_commit_prefix(message: &str) -> String {
+    if let Some(colon_pos) = message.find(':') {
+        message[colon_pos + 1..].trim().to_string()
+    } else {
+        message.to_string()
+    }
+}
+
+fn parse_commit_scope(message: &str) -> String {
+    if let Some(colon_pos) = message.find(':') {
+        let prefix = &message[..colon_pos];
+
+        if let Some(open_paren) = prefix.find('(') {
+            if let Some(close_paren) = prefix.find(')') {
+                return prefix[open_paren + 1..close_paren].trim().to_string();
+            }
+        }
+    }
+
+    String::new()
 }
 
 fn get_output_path(repo_name: &str, commit_sha: &str) -> Result<PathBuf> {

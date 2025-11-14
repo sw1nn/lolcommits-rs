@@ -199,7 +199,7 @@ pub fn overlay_chyron(
     image: DynamicImage,
     message: &str,
     commit_type: &str,
-    sha: &str,
+    scope: &str,
     repo_name: &str,
 ) -> Result<DynamicImage> {
     let font = FontRef::try_from_slice(FONT_DATA)
@@ -236,7 +236,11 @@ pub fn overlay_chyron(
     );
 
     let info_y = y_start as i32 + 45;
-    let info_text = format!("{} • {} • {}", commit_type.to_uppercase(), sha, repo_name);
+    let info_text = if scope.is_empty() {
+        format!("{} • {}", commit_type.to_uppercase(), repo_name)
+    } else {
+        format!("{} • {} • {}", commit_type.to_uppercase(), scope, repo_name)
+    };
     draw_text_mut(
         &mut rgba_image,
         yellow,
