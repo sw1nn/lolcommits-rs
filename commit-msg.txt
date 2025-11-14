@@ -1,10 +1,9 @@
-feat: initial implementation of lolcommits-rs
+feat: add chyron overlay and conventional commit parsing
 
-Implement basic lolcommits clone in Rust with:
-- Webcam capture using nokhwa
-- Image text overlay with ab_glyph
-- Git repository detection and commit SHA extraction
-- Custom error handling with derive_more
-- CLI argument parsing with clap
-- Structured logging with tracing
-- Output to ~/.local/share/lolcommits-rs/
+- Parse conventional commit type from message (feat/fix/docs/chore/etc)
+- Accept SHA as CLI argument instead of extracting from git
+- Implement chyron-style overlay at bottom of image with:
+  - Semi-transparent black background bar
+  - Commit message in white text
+  - Commit type, SHA, and repo name in yellow text
+- Remove unused get_commit_sha function and NoCommit error variant

@@ -16,6 +16,9 @@ pub enum LolcommitsError {
     #[from]
     Camera(nokhwa::NokhwaError),
 
+    #[from]
+    OpenCV(opencv::Error),
+
     NotInGitRepo,
     NoHomeDirectory,
     NoRepoName,

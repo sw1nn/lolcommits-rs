@@ -5,6 +5,7 @@ mod error;
 mod git;
 mod camera;
 mod image_processor;
+mod segmentation;
 
 use error::Result;
 
@@ -37,11 +38,15 @@ fn main() -> Result<()> {
     let image = camera::capture_image()?;
     tracing::info!("Captured image from webcam");
 
+    // TEMPORARY: Test full blur function (with early return)
+    let blurred_image = image_processor::blur_background(image)?;
+    tracing::info!("Full blur function test");
+
     let commit_type = parse_commit_type(&args.message);
     let first_line = args.message.lines().next().unwrap_or(&args.message);
 
     let processed_image = image_processor::overlay_chyron(
-        image,
+        blurred_image,
         first_line,
         &commit_type,
         &args.sha,

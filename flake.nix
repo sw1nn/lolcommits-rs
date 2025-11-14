@@ -13,6 +13,12 @@
       in
       {
         devShells.default = pkgs.mkShell {
+          nativeBuildInputs = with pkgs; [
+            pkg-config
+            clang
+            llvmPackages.llvm
+          ];
+
           buildInputs = with pkgs; [
             # Rust toolchain
             rustc
@@ -20,22 +26,16 @@
             rustfmt
             clippy
 
-            # OpenCV dependencies
+            # OpenCV with clang-runtime feature
             opencv
-            clang
             llvmPackages.libclang
-            pkg-config
 
             # Additional libraries
             libgit2
             openssl
           ];
 
-          shellHook = ''
-            export LIBCLANG_PATH="${pkgs.llvmPackages.libclang.lib}/lib"
-            export LD_LIBRARY_PATH="${pkgs.opencv}/lib:${pkgs.libgit2}/lib:$LD_LIBRARY_PATH"
-            export PKG_CONFIG_PATH="${pkgs.opencv}/lib/pkgconfig:$PKG_CONFIG_PATH"
-          '';
+          LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
         };
       }
     );

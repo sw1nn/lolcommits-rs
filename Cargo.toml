@@ -15,3 +15,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 derive_more = { version = "1.0", features = ["display", "from", "error"] }
 directories = "5.0"
 chrono = "0.4"
+opencv = { version = "0.97", default-features = false, features = [
+  "imgproc",
+  "clang-runtime",
+  "dnn",
+] }
+reqwest = { version = "0.12", features = ["blocking"] }
+sha2 = "0.10"
