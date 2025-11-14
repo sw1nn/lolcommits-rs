@@ -17,22 +17,21 @@
       {
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
+            # Build tools and compilers
             pkg-config
             clang
             llvmPackages.llvm
-          ];
+            llvmPackages.libclang
 
-          buildInputs = with pkgs; [
             # Rust toolchain from rust-toolchain.toml
             (rustVersion.override { extensions = [ "rust-src" "llvm-tools-preview" ]; })
             cargo-llvm-cov
             rust-analyzer
+          ];
 
-            # OpenCV with clang-runtime feature
+          buildInputs = with pkgs; [
+            # Runtime libraries
             opencv
-            llvmPackages.libclang
-
-            # Additional libraries
             libgit2
             openssl
             fontconfig.dev
