@@ -119,6 +119,43 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
         })
         .collect();
 
+    // Calculate center of mass of the mask to find person's center
+    let mut sum_x = 0.0_f32;
+    let mut sum_y = 0.0_f32;
+    let mut total_weight = 0.0_f32;
+
+    for y in 0..height {
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            let weight = mask_values[idx];
+            if weight > 0.1 { // Only consider pixels that are likely person
+                sum_x += x as f32 * weight;
+                sum_y += y as f32 * weight;
+                total_weight += weight;
+            }
+        }
+    }
+
+    let (person_center_x, person_center_y) = if total_weight > 0.0 {
+        (sum_x / total_weight, sum_y / total_weight)
+    } else {
+        (width as f32 / 2.0, height as f32 / 2.0) // Default to image center if no person detected
+    };
+
+    let image_center_x = width as f32 / 2.0;
+    let image_center_y = height as f32 / 2.0;
+
+    let offset_x = (image_center_x - person_center_x) as i32;
+    let offset_y = (image_center_y - person_center_y) as i32;
+
+    tracing::debug!(
+        person_center_x = person_center_x,
+        person_center_y = person_center_y,
+        offset_x = offset_x,
+        offset_y = offset_y,
+        "Calculated person center and offset"
+    );
+
     // Convert BGR back to RGB
     let mut rgb_mat = Mat::default();
     cvt_color(&bgr_mat, &mut rgb_mat, COLOR_BGR2RGB, 0, AlgorithmHint::ALGO_HINT_DEFAULT)?;
@@ -131,23 +168,44 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
     let bg_rgb = bg_resized.to_rgb8();
     let bg_bytes = bg_rgb.as_raw();
 
-    // Composite: foreground * alpha + background * (1 - alpha)
+    // Composite: foreground * alpha + background * (1 - alpha) with translation
     let mut result_data = Vec::with_capacity((width * height * 3) as usize);
-    for i in 0..(width * height) as usize {
-        let alpha = mask_values[i];  // 0-1 range
-        let inv_alpha = 1.0 - alpha;
+    for y in 0..height {
+        for x in 0..width {
+            let dest_idx = (y * width + x) as usize;
 
-        let fg_r = rgb_bytes[i * 3] as f32;
-        let fg_g = rgb_bytes[i * 3 + 1] as f32;
-        let fg_b = rgb_bytes[i * 3 + 2] as f32;
+            // Calculate source position with offset
+            let src_x = x as i32 - offset_x;
+            let src_y = y as i32 - offset_y;
 
-        let bg_r = bg_bytes[i * 3] as f32;
-        let bg_g = bg_bytes[i * 3 + 1] as f32;
-        let bg_b = bg_bytes[i * 3 + 2] as f32;
+            // Check if source position is within bounds
+            if src_x >= 0 && src_x < width as i32 && src_y >= 0 && src_y < height as i32 {
+                let src_idx = (src_y as u32 * width + src_x as u32) as usize;
+                let alpha = mask_values[src_idx];  // 0-1 range
+                let inv_alpha = 1.0 - alpha;
 
-        result_data.push((fg_r * alpha + bg_r * inv_alpha) as u8);
-        result_data.push((fg_g * alpha + bg_g * inv_alpha) as u8);
-        result_data.push((fg_b * alpha + bg_b * inv_alpha) as u8);
+                let fg_r = rgb_bytes[src_idx * 3] as f32;
+                let fg_g = rgb_bytes[src_idx * 3 + 1] as f32;
+                let fg_b = rgb_bytes[src_idx * 3 + 2] as f32;
+
+                let bg_r = bg_bytes[dest_idx * 3] as f32;
+                let bg_g = bg_bytes[dest_idx * 3 + 1] as f32;
+                let bg_b = bg_bytes[dest_idx * 3 + 2] as f32;
+
+                result_data.push((fg_r * alpha + bg_r * inv_alpha) as u8);
+                result_data.push((fg_g * alpha + bg_g * inv_alpha) as u8);
+                result_data.push((fg_b * alpha + bg_b * inv_alpha) as u8);
+            } else {
+                // Out of bounds, use background only
+                let bg_r = bg_bytes[dest_idx * 3];
+                let bg_g = bg_bytes[dest_idx * 3 + 1];
+                let bg_b = bg_bytes[dest_idx * 3 + 2];
+
+                result_data.push(bg_r);
+                result_data.push(bg_g);
+                result_data.push(bg_b);
+            }
+        }
     }
 
     let result_image = image::RgbImage::from_raw(width, height, result_data)
