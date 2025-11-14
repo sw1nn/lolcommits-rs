@@ -142,79 +142,55 @@ pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
     let mut mask_full = Mat::default();
     resize(&mask_320, &mut mask_full, Size::new(width as i32, height as i32), 0.0, 0.0, INTER_LINEAR)?;
 
-    // Check mask range - U2Net outputs 0-1 range already
     tracing::debug!("Mask full type: {}", mask_full.typ());
 
-    // Create blurred version
-    let mut blurred_full = Mat::default();
-    gaussian_blur(
-        &bgr_mat,
-        &mut blurred_full,
-        Size::new(51, 51),
-        0.0,
-        0.0,
-        BORDER_DEFAULT,
-        AlgorithmHint::ALGO_HINT_DEFAULT,
-    )?;
+    // Extract mask as Vec<f32> (0-1 range from U2Net)
+    let mask_bytes = mask_full.data_bytes()?;
+    let mask_values: Vec<f32> = (0..(width * height))
+        .map(|i| {
+            let idx = (i as usize) * 4;
+            f32::from_le_bytes([
+                mask_bytes[idx],
+                mask_bytes[idx + 1],
+                mask_bytes[idx + 2],
+                mask_bytes[idx + 3],
+            ])
+        })
+        .collect();
 
-    // Convert images to float for blending (normalize to 0-1 range)
-    let mut bgr_float = Mat::default();
-    bgr_mat.convert_to(&mut bgr_float, CV_32F, 1.0 / 255.0, 0.0)?;
+    // Convert BGR back to RGB
+    let mut rgb_mat = Mat::default();
+    cvt_color(&bgr_mat, &mut rgb_mat, COLOR_BGR2RGB, 0, AlgorithmHint::ALGO_HINT_DEFAULT)?;
+    let rgb_bytes: Vec<u8> = rgb_mat.data_bytes()?.to_vec();
 
-    let mut blurred_float = Mat::default();
-    blurred_full.convert_to(&mut blurred_float, CV_32F, 1.0 / 255.0, 0.0)?;
+    // Load background image using image crate
+    let bg_image_path = std::path::Path::new("/home/swn/.local/share/backgrounds/GoogleMeetBackground.png");
+    let bg_dynamic = image::open(bg_image_path)?;
+    let bg_resized = bg_dynamic.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
+    let bg_rgb = bg_resized.to_rgb8();
+    let bg_bytes = bg_rgb.as_raw();
 
-    tracing::debug!(bgr_float_shape = ?bgr_float.mat_size(), mask_full_shape = ?mask_full.mat_size(), "Pre-conversion shapes");
+    // Composite: foreground * alpha + background * (1 - alpha)
+    let mut result_data = Vec::with_capacity((width * height * 3) as usize);
+    for i in 0..(width * height) as usize {
+        let alpha = mask_values[i];  // 0-1 range
+        let inv_alpha = 1.0 - alpha;
 
-    // Expand mask to 3 channels - manually replicate to avoid BGR/RGB confusion
-    let mut mask_3ch = Mat::default();
-    let mut mask_channels = opencv::core::Vector::<Mat>::new();
-    mask_channels.push(mask_full.clone());
-    mask_channels.push(mask_full.clone());
-    mask_channels.push(mask_full);
-    opencv::core::merge(&mask_channels, &mut mask_3ch)?;
+        let fg_r = rgb_bytes[i * 3] as f32;
+        let fg_g = rgb_bytes[i * 3 + 1] as f32;
+        let fg_b = rgb_bytes[i * 3 + 2] as f32;
 
-    tracing::debug!(mask_3ch_shape = ?mask_3ch.mat_size(), "Mask 3ch shape");
+        let bg_r = bg_bytes[i * 3] as f32;
+        let bg_g = bg_bytes[i * 3 + 1] as f32;
+        let bg_b = bg_bytes[i * 3 + 2] as f32;
 
-    // TEMP: Use black background for testing
-    let mut bg_bgr_mat = Mat::new_rows_cols_with_default(
-        height as i32,
-        width as i32,
-        CV_8UC3,
-        Scalar::all(0.0)
-    )?;
+        result_data.push((fg_r * alpha + bg_r * inv_alpha) as u8);
+        result_data.push((fg_g * alpha + bg_g * inv_alpha) as u8);
+        result_data.push((fg_b * alpha + bg_b * inv_alpha) as u8);
+    }
 
-    // Convert background to float (normalize to 0-1 range)
-    let mut bg_float = Mat::default();
-    bg_bgr_mat.convert_to(&mut bg_float, CV_32F, 1.0 / 255.0, 0.0)?;
-
-    // Create inverse mask (ones mat needs to match mask_3ch dimensions)
-    let mut inv_mask_3ch = Mat::default();
-    let ones_mat = Mat::ones(mask_3ch.rows(), mask_3ch.cols(), mask_3ch.typ())?;
-    opencv::core::subtract(&ones_mat.to_mat()?, &mask_3ch, &mut inv_mask_3ch, &opencv::core::no_array(), -1)?;
-
-    // Blend: original * mask + background * (1 - mask)
-    let mut original_masked = Mat::default();
-    opencv::core::multiply(&bgr_float, &mask_3ch, &mut original_masked, 1.0, -1)?;
-
-    let mut background_masked = Mat::default();
-    opencv::core::multiply(&bg_float, &inv_mask_3ch, &mut background_masked, 1.0, -1)?;
-
-    let mut combined_float = Mat::default();
-    opencv::core::add(&original_masked, &background_masked, &mut combined_float, &opencv::core::no_array(), -1)?;
-
-    // Convert back to uint8 (denormalize from 0-1 to 0-255)
-    let mut combined_bgr = Mat::default();
-    combined_float.convert_to(&mut combined_bgr, CV_8UC3, 255.0, 0.0)?;
-
-    // Convert BGR back to RGB for output using OpenCV's cvt_color
-    let mut combined_rgb = Mat::default();
-    cvt_color(&combined_bgr, &mut combined_rgb, COLOR_BGR2RGB, 0, AlgorithmHint::ALGO_HINT_DEFAULT)?;
-
-    let result_vec: Vec<u8> = combined_rgb.data_bytes()?.to_vec();
-
-    let result_image = image::RgbImage::from_raw(width, height, result_vec)
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Failed to create image from blurred data"))?;
+    let result_image = image::RgbImage::from_raw(width, height, result_data)
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Failed to create composited image"))?;
 
     Ok(DynamicImage::ImageRgb8(result_image))
 }
