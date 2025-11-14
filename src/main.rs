@@ -101,11 +101,10 @@ fn parse_commit_scope(message: &str) -> String {
     if let Some(colon_pos) = message.find(':') {
         let prefix = &message[..colon_pos];
 
-        if let Some(open_paren) = prefix.find('(') {
-            if let Some(close_paren) = prefix.find(')') {
+        if let Some(open_paren) = prefix.find('(')
+            && let Some(close_paren) = prefix.find(')') {
                 return prefix[open_paren + 1..close_paren].trim().to_string();
             }
-        }
     }
 
     String::new()

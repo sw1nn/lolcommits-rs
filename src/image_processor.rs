@@ -338,15 +338,14 @@ pub fn overlay_chyron(
         let mut total_width = 0;
 
         for part in parts.iter() {
-            if part.contains("deletion") || part.contains("insertion") {
-                if let Some(space_pos) = part.find(' ') {
+            if (part.contains("deletion") || part.contains("insertion"))
+                && let Some(space_pos) = part.find(' ') {
                     let num = &part[..space_pos];
                     total_width += (num.len() as f32 * 10.0) as i32; // number width
                     total_width += 5; // gap after number
                     total_width += 10; // +/- symbol
                     total_width += 15; // gap before next item
                 }
-            }
         }
         (width as i32) - 30 - total_width
     } else {
