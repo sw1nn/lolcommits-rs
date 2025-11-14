@@ -46,3 +46,37 @@ fn download_model(path: &PathBuf) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_model_path_creates_directory() {
+        // Test that get_model_path successfully creates a path
+        // Note: This will actually create the XDG cache directory if it doesn't exist
+        let result = get_model_path();
+        assert!(result.is_ok());
+
+        let path = result.unwrap();
+        // Should end with the model filename
+        assert!(path.to_string_lossy().ends_with(MODEL_FILENAME));
+
+        // Parent directory should exist (created by place_cache_file)
+        assert!(path.parent().unwrap().exists());
+    }
+
+    #[test]
+    fn test_model_path_uses_xdg_cache() {
+        // Verify that the model path is in the XDG cache directory
+        let result = get_model_path();
+        assert!(result.is_ok());
+
+        let path = result.unwrap();
+        let path_str = path.to_string_lossy();
+
+        // Should contain "cache" and "lolcommits-rs" in the path
+        assert!(path_str.contains("cache"));
+        assert!(path_str.contains("lolcommits-rs"));
+    }
+}

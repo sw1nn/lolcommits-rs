@@ -32,3 +32,33 @@ fn open_repo() -> Result<Repository> {
     let current_dir = env::current_dir()?;
     Repository::discover(current_dir).map_err(|_| LolcommitsError::NotInGitRepo)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_repo_name() {
+        // This test will work when run from within a git repo
+        // Since we're in sw1nn-lolcommits-rs repo, it should succeed
+        let result = get_repo_name();
+        assert!(result.is_ok());
+        let repo_name = result.unwrap();
+        assert_eq!(repo_name, "sw1nn-lolcommits-rs");
+    }
+
+    #[test]
+    fn test_open_repo() {
+        // Should successfully open the current repo
+        let result = open_repo();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_diff_shortstat() {
+        // Should return Ok even if there are no staged changes
+        // The string might be empty but the operation should succeed
+        let result = get_diff_shortstat();
+        assert!(result.is_ok());
+    }
+}
