@@ -47,8 +47,8 @@ fn default_font_name() -> String {
 }
 
 fn default_background_path() -> String {
-    let base_dirs = BaseDirectories::with_prefix("lolcommits-rs")
-        .expect("Failed to get XDG base directories");
+    let base_dirs =
+        BaseDirectories::with_prefix("lolcommits-rs").expect("Failed to get XDG base directories");
     base_dirs
         .get_data_home()
         .join("background.png")
@@ -102,38 +102,47 @@ impl Default for Config {
 impl Config {
     /// Get the font name for messages, falling back to default_font_name
     pub fn get_message_font_name(&self) -> &str {
-        self.message_font_name.as_deref().unwrap_or(&self.default_font_name)
+        self.message_font_name
+            .as_deref()
+            .unwrap_or(&self.default_font_name)
     }
 
     /// Get the font name for info, falling back to default_font_name
     pub fn get_info_font_name(&self) -> &str {
-        self.info_font_name.as_deref().unwrap_or(&self.default_font_name)
+        self.info_font_name
+            .as_deref()
+            .unwrap_or(&self.default_font_name)
     }
 
     /// Get the font name for SHA, falling back to default_font_name
     pub fn get_sha_font_name(&self) -> &str {
-        self.sha_font_name.as_deref().unwrap_or(&self.default_font_name)
+        self.sha_font_name
+            .as_deref()
+            .unwrap_or(&self.default_font_name)
     }
 
     /// Get the font name for stats, falling back to default_font_name
     pub fn get_stats_font_name(&self) -> &str {
-        self.stats_font_name.as_deref().unwrap_or(&self.default_font_name)
+        self.stats_font_name
+            .as_deref()
+            .unwrap_or(&self.default_font_name)
     }
 }
 
 impl Config {
     /// Load configuration from XDG_CONFIG_HOME/lolcommits-rs/config.toml
     pub fn load() -> Result<Self> {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs")
-            .map_err(|e| LolcommitsError::ConfigError {
+        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs").map_err(|e| {
+            LolcommitsError::ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
-            })?;
+            }
+        })?;
 
-        let config_path = base_dirs
-            .place_config_file("config.toml")
-            .map_err(|e| LolcommitsError::ConfigError {
+        let config_path = base_dirs.place_config_file("config.toml").map_err(|e| {
+            LolcommitsError::ConfigError {
                 message: format!("Failed to create config directory: {}", e),
-            })?;
+            }
+        })?;
 
         if !config_path.exists() {
             tracing::info!(path = %config_path.display(), "Config file not found, creating default");
@@ -143,15 +152,15 @@ impl Config {
         }
 
         tracing::debug!(path = %config_path.display(), "Loading config");
-        let contents = std::fs::read_to_string(&config_path).map_err(|e| {
-            LolcommitsError::ConfigError {
+        let contents =
+            std::fs::read_to_string(&config_path).map_err(|e| LolcommitsError::ConfigError {
                 message: format!("Failed to read config file: {}", e),
-            }
-        })?;
+            })?;
 
-        let config: Config = toml::from_str(&contents).map_err(|e| LolcommitsError::ConfigError {
-            message: format!("Failed to parse config file: {}", e),
-        })?;
+        let config: Config =
+            toml::from_str(&contents).map_err(|e| LolcommitsError::ConfigError {
+                message: format!("Failed to parse config file: {}", e),
+            })?;
 
         tracing::debug!(?config, "Config loaded successfully");
         Ok(config)
@@ -159,16 +168,17 @@ impl Config {
 
     /// Save configuration to XDG_CONFIG_HOME/lolcommits-rs/config.toml
     pub fn save(&self) -> Result<()> {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs")
-            .map_err(|e| LolcommitsError::ConfigError {
+        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs").map_err(|e| {
+            LolcommitsError::ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
-            })?;
+            }
+        })?;
 
-        let config_path = base_dirs
-            .place_config_file("config.toml")
-            .map_err(|e| LolcommitsError::ConfigError {
+        let config_path = base_dirs.place_config_file("config.toml").map_err(|e| {
+            LolcommitsError::ConfigError {
                 message: format!("Failed to create config directory: {}", e),
-            })?;
+            }
+        })?;
 
         let contents = toml::to_string_pretty(self).map_err(|e| LolcommitsError::ConfigError {
             message: format!("Failed to serialize config: {}", e),
@@ -184,10 +194,11 @@ impl Config {
 
     /// Get the path to the config file
     pub fn config_path() -> Result<PathBuf> {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs")
-            .map_err(|e| LolcommitsError::ConfigError {
+        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs").map_err(|e| {
+            LolcommitsError::ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
-            })?;
+            }
+        })?;
 
         Ok(base_dirs.get_config_home())
     }

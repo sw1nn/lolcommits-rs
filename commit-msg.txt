@@ -1,9 +1,0 @@
-feat: add chyron overlay and conventional commit parsing
-
-- Parse conventional commit type from message (feat/fix/docs/chore/etc)
-- Accept SHA as CLI argument instead of extracting from git
-- Implement chyron-style overlay at bottom of image with:
-  - Semi-transparent black background bar
-  - Commit message in white text
-  - Commit type, SHA, and repo name in yellow text
-- Remove unused get_commit_sha function and NoCommit error variant

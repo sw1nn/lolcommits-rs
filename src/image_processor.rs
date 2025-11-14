@@ -6,12 +6,10 @@ use image::{DynamicImage, Rgba};
 use imageproc::drawing::draw_text_mut;
 use opencv::core::{AlgorithmHint, CV_32F, Mat, Scalar, Size, Vec3b};
 use opencv::dnn::{DNN_BACKEND_OPENCV, DNN_TARGET_CPU, read_net_from_onnx};
-use opencv::imgproc::{
-    COLOR_BGR2RGB, COLOR_RGB2BGR, INTER_LINEAR, cvt_color, resize,
-};
+use opencv::imgproc::{COLOR_BGR2RGB, COLOR_RGB2BGR, INTER_LINEAR, cvt_color, resize};
 use opencv::prelude::*;
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Load a font by name using fontconfig and return a FontRef
 ///
@@ -21,13 +19,16 @@ fn load_font(font_name: &str) -> Result<FontRef<'static>> {
     tracing::debug!(font_name = %font_name, font_path = %font_path.display(), "Loading font");
 
     let font_data = std::fs::read(&font_path).map_err(|e| {
-        std::io::Error::other(format!("Failed to read font from {}: {}", font_path.display(), e))
+        std::io::Error::other(format!(
+            "Failed to read font from {}: {}",
+            font_path.display(),
+            e
+        ))
     })?;
 
     let font_data_static: &'static [u8] = Box::leak(font_data.into_boxed_slice());
-    let font = FontRef::try_from_slice(font_data_static).map_err(|e| {
-        std::io::Error::other(format!("Failed to parse font: {}", e))
-    })?;
+    let font = FontRef::try_from_slice(font_data_static)
+        .map_err(|e| std::io::Error::other(format!("Failed to parse font: {}", e)))?;
 
     Ok(font)
 }
@@ -59,9 +60,11 @@ fn resolve_font_path(font_name: &str) -> Result<PathBuf> {
         return Ok(path.clone());
     }
 
-    Err(std::io::Error::other(
-        format!("Font '{}' not found and monospace fallback unavailable", font_name)
-    ).into())
+    Err(std::io::Error::other(format!(
+        "Font '{}' not found and monospace fallback unavailable",
+        font_name
+    ))
+    .into())
 }
 
 /// Resolve background image path according to XDG Base Directory specification
@@ -76,9 +79,11 @@ fn resolve_background_path(path_spec: &str) -> Result<PathBuf> {
         if path.exists() {
             return Ok(path);
         } else {
-            return Err(std::io::Error::other(
-                format!("Background image not found: {}", path_spec)
-            ).into());
+            return Err(std::io::Error::other(format!(
+                "Background image not found: {}",
+                path_spec
+            ))
+            .into());
         }
     }
 
@@ -124,10 +129,11 @@ fn resolve_background_path(path_spec: &str) -> Result<PathBuf> {
         }
     }
 
-    Err(std::io::Error::other(
-        format!("Background image '{}.png' not found in XDG data directories: {:?}",
-                path_spec, search_dirs)
-    ).into())
+    Err(std::io::Error::other(format!(
+        "Background image '{}.png' not found in XDG data directories: {:?}",
+        path_spec, search_dirs
+    ))
+    .into())
 }
 
 pub fn replace_background(image: DynamicImage, config: &Config) -> Result<DynamicImage> {
@@ -360,11 +366,8 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
         }
     }
 
-    let result_image = image::RgbImage::from_raw(width, height, result_data).ok_or_else(|| {
-        std::io::Error::other(
-            "Failed to create composited image",
-        )
-    })?;
+    let result_image = image::RgbImage::from_raw(width, height, result_data)
+        .ok_or_else(|| std::io::Error::other("Failed to create composited image"))?;
 
     Ok(DynamicImage::ImageRgb8(result_image))
 }
@@ -453,13 +456,14 @@ pub fn overlay_chyron(
 
         for part in parts.iter() {
             if (part.contains("deletion") || part.contains("insertion"))
-                && let Some(space_pos) = part.find(' ') {
-                    let num = &part[..space_pos];
-                    total_width += (num.len() as f32 * 10.0) as i32; // number width
-                    total_width += 5; // gap after number
-                    total_width += 10; // +/- symbol
-                    total_width += 15; // gap before next item
-                }
+                && let Some(space_pos) = part.find(' ')
+            {
+                let num = &part[..space_pos];
+                total_width += (num.len() as f32 * 10.0) as i32; // number width
+                total_width += 5; // gap after number
+                total_width += 10; // +/- symbol
+                total_width += 15; // gap before next item
+            }
         }
         (width as i32) - 30 - total_width
     } else {
