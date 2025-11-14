@@ -111,13 +111,19 @@ fn parse_commit_scope(message: &str) -> String {
 }
 
 fn get_output_path(repo_name: &str, commit_sha: &str) -> Result<PathBuf> {
-    let base_dir = directories::BaseDirs::new().ok_or(error::LolcommitsError::NoHomeDirectory)?;
-
-    let data_dir = base_dir.data_local_dir().join("lolcommits-rs");
-    std::fs::create_dir_all(&data_dir)?;
+    let xdg_dirs = xdg::BaseDirectories::with_prefix("lolcommits-rs")
+        .map_err(|e| error::LolcommitsError::ConfigError {
+            message: format!("Failed to get XDG base directories: {}", e),
+        })?;
 
     let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
     let filename = format!("{}-{}-{}.png", repo_name, timestamp, commit_sha);
 
-    Ok(data_dir.join(filename))
+    let output_path = xdg_dirs
+        .place_data_file(filename)
+        .map_err(|e| error::LolcommitsError::ConfigError {
+            message: format!("Failed to create data directory: {}", e),
+        })?;
+
+    Ok(output_path)
 }

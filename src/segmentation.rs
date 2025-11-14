@@ -1,7 +1,7 @@
 use crate::error::Result;
-use directories::BaseDirs;
 use std::fs;
 use std::path::PathBuf;
+use xdg::BaseDirectories;
 
 // Using U2Net model for background segmentation
 // This model is well-tested with OpenCV DNN and provides good results
@@ -9,15 +9,16 @@ const MODEL_URL: &str = "https://github.com/danielgatis/rembg/releases/download/
 const MODEL_FILENAME: &str = "u2net.onnx";
 
 pub fn get_model_path() -> Result<PathBuf> {
-    let base_dirs = BaseDirs::new().ok_or(crate::error::LolcommitsError::NoHomeDirectory)?;
+    let xdg_dirs = BaseDirectories::with_prefix("lolcommits-rs")
+        .map_err(|e| crate::error::LolcommitsError::ConfigError {
+            message: format!("Failed to get XDG base directories: {}", e),
+        })?;
 
-    let models_dir = base_dirs
-        .data_local_dir()
-        .join("lolcommits-rs")
-        .join("models");
-    fs::create_dir_all(&models_dir)?;
-
-    let model_path = models_dir.join(MODEL_FILENAME);
+    let model_path = xdg_dirs
+        .place_cache_file(MODEL_FILENAME)
+        .map_err(|e| crate::error::LolcommitsError::ConfigError {
+            message: format!("Failed to create cache directory: {}", e),
+        })?;
 
     if !model_path.exists() {
         tracing::info!("Downloading segmentation model (this happens once)...");
