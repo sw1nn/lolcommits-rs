@@ -44,16 +44,16 @@ fn main() -> Result<()> {
     let image = camera::capture_image()?;
     tracing::info!("Captured image from webcam");
 
-    let blurred_image = image_processor::blur_background(image, &config)?;
-    tracing::info!("Background processed");
+    let processed_image = image_processor::replace_background(image, &config)?;
+    tracing::info!("Background replaced");
 
     let commit_type = parse_commit_type(&args.message);
     let first_line = args.message.lines().next().unwrap_or(&args.message);
     let message_without_prefix = strip_commit_prefix(first_line);
     let scope = parse_commit_scope(first_line);
 
-    let processed_image = image_processor::overlay_chyron(
-        blurred_image,
+    let final_image = image_processor::overlay_chyron(
+        processed_image,
         &message_without_prefix,
         &commit_type,
         &scope,
@@ -65,7 +65,7 @@ fn main() -> Result<()> {
     tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
 
     let output_path = get_output_path(&repo_name, &args.sha)?;
-    processed_image.save(&output_path)?;
+    final_image.save(&output_path)?;
 
     tracing::info!(path = %output_path.display(), "Saved lolcommit");
     println!("Saved lolcommit to: {}", output_path.display());

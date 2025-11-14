@@ -12,7 +12,7 @@ use opencv::imgproc::{
 use opencv::prelude::*;
 use std::path::Path;
 
-pub fn blur_background(image: DynamicImage, config: &Config) -> Result<DynamicImage> {
+pub fn replace_background(image: DynamicImage, config: &Config) -> Result<DynamicImage> {
     let rgb_image = image.to_rgb8();
     let (width, height) = rgb_image.dimensions();
     let image_data = rgb_image.into_raw();
