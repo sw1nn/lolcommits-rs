@@ -53,7 +53,8 @@ fn main() -> Result<()> {
         &commit_type,
         &scope,
         &repo_name,
-        &diff_stat
+        &diff_stat,
+        &args.sha
     )?;
     tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
 

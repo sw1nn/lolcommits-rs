@@ -1,8 +1,7 @@
 use crate::error::Result;
 use ab_glyph::{FontRef, PxScale};
 use image::{DynamicImage, Rgba};
-use imageproc::drawing::{draw_filled_rect_mut, draw_text_mut};
-use imageproc::rect::Rect as ImageRect;
+use imageproc::drawing::draw_text_mut;
 use opencv::core::{Mat, Size, Vec3b, AlgorithmHint, BORDER_DEFAULT, Scalar, CV_32F};
 use opencv::imgproc::{gaussian_blur, resize, INTER_LINEAR, cvt_color, COLOR_RGB2BGR, COLOR_BGR2RGB};
 use opencv::dnn::{read_net_from_onnx, DNN_BACKEND_OPENCV, DNN_TARGET_CPU};
@@ -164,6 +163,7 @@ pub fn overlay_chyron(
     scope: &str,
     repo_name: &str,
     stats: &str,
+    sha: &str,
 ) -> Result<DynamicImage> {
     let font = FontRef::try_from_slice(FONT_DATA)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to load font: {}", e)))?;
@@ -178,12 +178,22 @@ pub fn overlay_chyron(
     let chyron_height = 80;
     let y_start = height - chyron_height;
 
-    let semi_transparent_black = Rgba([0u8, 0u8, 0u8, 200u8]);
-    draw_filled_rect_mut(
-        &mut rgba_image,
-        ImageRect::at(0, y_start as i32).of_size(width, chyron_height),
-        semi_transparent_black,
-    );
+    // Manually apply semi-transparent black with proper alpha blending
+    let overlay_alpha = 0.75;
+    for y in y_start..height {
+        for x in 0..width {
+            let pixel = rgba_image.get_pixel_mut(x, y);
+            let [r, g, b, a] = pixel.0;
+
+            // Blend: result = overlay * overlay_alpha + background * (1 - overlay_alpha)
+            pixel.0 = [
+                (0.0 * overlay_alpha + r as f32 * (1.0 - overlay_alpha)) as u8,
+                (0.0 * overlay_alpha + g as f32 * (1.0 - overlay_alpha)) as u8,
+                (0.0 * overlay_alpha + b as f32 * (1.0 - overlay_alpha)) as u8,
+                a, // Keep original alpha
+            ];
+        }
+    }
 
     let white = Rgba([255u8, 255u8, 255u8, 255u8]);
     let yellow = Rgba([255u8, 255u8, 0u8, 255u8]);
@@ -218,46 +228,74 @@ pub fn overlay_chyron(
         &info_text,
     );
 
-    // Draw colorized stats on the right side if available
+    // Calculate stats width first to determine left-aligned starting position
+    let stats_start_x = if !stats.is_empty() {
+        let parts: Vec<&str> = stats.split(',').map(|s| s.trim()).collect();
+        let mut total_width = 0;
+
+        for part in parts.iter() {
+            if part.contains("deletion") || part.contains("insertion") {
+                if let Some(space_pos) = part.find(' ') {
+                    let num = &part[..space_pos];
+                    total_width += (num.len() as f32 * 10.0) as i32; // number width
+                    total_width += 5; // gap after number
+                    total_width += 10; // +/- symbol
+                    total_width += 15; // gap before next item
+                }
+            }
+        }
+        (width as i32) - 30 - total_width
+    } else {
+        (width as i32) - 150 // default position if no stats
+    };
+
+    // Draw SHA on the right side of the title line, left-aligned with stats
+    if !sha.is_empty() {
+        let sha_short = if sha.len() > 7 { &sha[..7] } else { sha };
+        draw_text_mut(&mut rgba_image, yellow, stats_start_x, title_y, title_scale, &font, sha_short);
+    }
+
+    // Draw colorized stats on the right side, left-aligned with SHA
     if !stats.is_empty() {
         let green = Rgba([0u8, 255u8, 0u8, 255u8]);
         let red = Rgba([255u8, 0u8, 0u8, 255u8]);
 
-        // Start from the right side, work backwards
-        let mut x_offset = (width as i32) - 15;
+        let mut x_offset = stats_start_x;
 
         // Parse stats: "N file(s) changed, M insertion(s)(+), K deletion(s)(-)"
         let parts: Vec<&str> = stats.split(',').map(|s| s.trim()).collect();
 
-        // Process in reverse order so we can right-align
-        for part in parts.iter().rev() {
-            if part.contains("deletion") {
-                // Extract number and draw in red
-                if let Some(space_pos) = part.find(' ') {
-                    let num = &part[..space_pos];
-                    let text_width = (num.len() as f32 * 10.0) as i32;
-                    x_offset -= text_width;
-                    draw_text_mut(&mut rgba_image, red, x_offset, info_y, info_scale, &font, num);
-                    x_offset -= 5; // small gap
-
-                    // Draw "-" before the number
-                    x_offset -= 10;
-                    draw_text_mut(&mut rgba_image, red, x_offset, info_y, info_scale, &font, "-");
-                    x_offset -= 15; // gap before next item
-                }
-            } else if part.contains("insertion") {
+        // Process in forward order for left-to-right drawing
+        for part in parts.iter() {
+            if part.contains("insertion") {
                 // Extract number and draw in green
                 if let Some(space_pos) = part.find(' ') {
                     let num = &part[..space_pos];
-                    let text_width = (num.len() as f32 * 10.0) as i32;
-                    x_offset -= text_width;
-                    draw_text_mut(&mut rgba_image, green, x_offset, info_y, info_scale, &font, num);
-                    x_offset -= 5; // small gap
 
-                    // Draw "+" before the number
-                    x_offset -= 10;
+                    // Draw "+"
                     draw_text_mut(&mut rgba_image, green, x_offset, info_y, info_scale, &font, "+");
-                    x_offset -= 15; // gap before next item
+                    x_offset += 10;
+
+                    // Draw number
+                    draw_text_mut(&mut rgba_image, green, x_offset, info_y, info_scale, &font, num);
+                    let text_width = (num.len() as f32 * 10.0) as i32;
+                    x_offset += text_width;
+                    x_offset += 20; // gap before next item
+                }
+            } else if part.contains("deletion") {
+                // Extract number and draw in red
+                if let Some(space_pos) = part.find(' ') {
+                    let num = &part[..space_pos];
+
+                    // Draw "-"
+                    draw_text_mut(&mut rgba_image, red, x_offset, info_y, info_scale, &font, "-");
+                    x_offset += 10;
+
+                    // Draw number
+                    draw_text_mut(&mut rgba_image, red, x_offset, info_y, info_scale, &font, num);
+                    let text_width = (num.len() as f32 * 10.0) as i32;
+                    x_offset += text_width;
+                    x_offset += 20; // gap before next item
                 }
             }
         }
