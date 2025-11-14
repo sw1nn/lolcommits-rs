@@ -22,4 +22,5 @@ pub enum LolcommitsError {
     NotInGitRepo,
     NoHomeDirectory,
     NoRepoName,
+    GitCommandFailed,
 }

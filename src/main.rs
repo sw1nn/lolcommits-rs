@@ -33,14 +33,14 @@ fn main() -> Result<()> {
     tracing::info!(message = %args.message, sha = %args.sha, "Starting lolcommits-rs");
 
     let repo_name = git::get_repo_name()?;
-    tracing::info!(repo_name = %repo_name, "Got git info");
+    let diff_stat = git::get_diff_shortstat()?;
+    tracing::info!(repo_name = %repo_name, diff_stat = %diff_stat, "Got git info");
 
     let image = camera::capture_image()?;
     tracing::info!("Captured image from webcam");
 
-    // TEMPORARY: Test full blur function (with early return)
     let blurred_image = image_processor::blur_background(image)?;
-    tracing::info!("Full blur function test");
+    tracing::info!("Background processed");
 
     let commit_type = parse_commit_type(&args.message);
     let first_line = args.message.lines().next().unwrap_or(&args.message);
@@ -52,9 +52,10 @@ fn main() -> Result<()> {
         &message_without_prefix,
         &commit_type,
         &scope,
-        &repo_name
+        &repo_name,
+        &diff_stat
     )?;
-    tracing::info!(commit_type = %commit_type, "Overlaid chyron on image");
+    tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
 
     let output_path = get_output_path(&repo_name, &args.sha)?;
     processed_image.save(&output_path)?;

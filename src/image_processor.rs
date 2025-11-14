@@ -3,51 +3,13 @@ use ab_glyph::{FontRef, PxScale};
 use image::{DynamicImage, Rgba};
 use imageproc::drawing::{draw_filled_rect_mut, draw_text_mut};
 use imageproc::rect::Rect as ImageRect;
-use opencv::core::{Mat, Size, Vec3b, AlgorithmHint, BORDER_DEFAULT, Scalar, CV_8UC3, CV_32F};
+use opencv::core::{Mat, Size, Vec3b, AlgorithmHint, BORDER_DEFAULT, Scalar, CV_32F};
 use opencv::imgproc::{gaussian_blur, resize, INTER_LINEAR, cvt_color, COLOR_RGB2BGR, COLOR_BGR2RGB};
 use opencv::dnn::{read_net_from_onnx, DNN_BACKEND_OPENCV, DNN_TARGET_CPU};
 use opencv::prelude::*;
 use crate::segmentation;
 
 const FONT_DATA: &[u8] = include_bytes!("/usr/share/fonts/TTF/InputSansCompressedNerdFont-Bold.ttf");
-
-pub fn blur_background_simple_test(image: DynamicImage) -> Result<DynamicImage> {
-    // TEMPORARY: Simple blur without segmentation to test color
-    let rgb_image = image.to_rgb8();
-    let (width, height) = rgb_image.dimensions();
-    let image_data = rgb_image.into_raw();
-
-    let vec3b_data: Vec<Vec3b> = image_data
-        .chunks_exact(3)
-        .map(|chunk| Vec3b::from([chunk[0], chunk[1], chunk[2]]))
-        .collect();
-
-    let temp_mat = Mat::from_slice(&vec3b_data)?;
-    let rgb_mat = temp_mat.reshape(3, height as i32)?;
-
-    // Convert RGB to BGR
-    let mut bgr_mat = Mat::default();
-    cvt_color(&rgb_mat, &mut bgr_mat, COLOR_RGB2BGR, 0, AlgorithmHint::ALGO_HINT_DEFAULT)?;
-
-    // Simple blur
-    let mut blurred_bgr = Mat::default();
-    gaussian_blur(&bgr_mat, &mut blurred_bgr, Size::new(51, 51), 0.0, 0.0, BORDER_DEFAULT, AlgorithmHint::ALGO_HINT_DEFAULT)?;
-
-    // Convert back to RGB
-    let mut blurred_rgb = Mat::default();
-    cvt_color(&blurred_bgr, &mut blurred_rgb, COLOR_BGR2RGB, 0, AlgorithmHint::ALGO_HINT_DEFAULT)?;
-
-    let result_vec: Vec<u8> = blurred_rgb.data_bytes()?.to_vec();
-    let result_image = image::RgbImage::from_raw(width, height, result_vec)
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Failed to create image"))?;
-
-    Ok(DynamicImage::ImageRgb8(result_image))
-}
-
-pub fn blur_background_disabled(image: DynamicImage) -> Result<DynamicImage> {
-    // TEMPORARY: Just pass through to test color
-    Ok(image)
-}
 
 pub fn blur_background(image: DynamicImage) -> Result<DynamicImage> {
     let rgb_image = image.to_rgb8();
@@ -201,11 +163,16 @@ pub fn overlay_chyron(
     commit_type: &str,
     scope: &str,
     repo_name: &str,
+    stats: &str,
 ) -> Result<DynamicImage> {
     let font = FontRef::try_from_slice(FONT_DATA)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to load font: {}", e)))?;
 
-    let mut rgba_image = image.to_rgba8();
+    // Work directly with RGBA if already RGBA, otherwise convert
+    let mut rgba_image = match image {
+        DynamicImage::ImageRgba8(img) => img,
+        other => other.to_rgba8(),
+    };
     let (width, height) = rgba_image.dimensions();
 
     let chyron_height = 80;
@@ -250,6 +217,51 @@ pub fn overlay_chyron(
         &font,
         &info_text,
     );
+
+    // Draw colorized stats on the right side if available
+    if !stats.is_empty() {
+        let green = Rgba([0u8, 255u8, 0u8, 255u8]);
+        let red = Rgba([255u8, 0u8, 0u8, 255u8]);
+
+        // Start from the right side, work backwards
+        let mut x_offset = (width as i32) - 15;
+
+        // Parse stats: "N file(s) changed, M insertion(s)(+), K deletion(s)(-)"
+        let parts: Vec<&str> = stats.split(',').map(|s| s.trim()).collect();
+
+        // Process in reverse order so we can right-align
+        for part in parts.iter().rev() {
+            if part.contains("deletion") {
+                // Extract number and draw in red
+                if let Some(space_pos) = part.find(' ') {
+                    let num = &part[..space_pos];
+                    let text_width = (num.len() as f32 * 10.0) as i32;
+                    x_offset -= text_width;
+                    draw_text_mut(&mut rgba_image, red, x_offset, info_y, info_scale, &font, num);
+                    x_offset -= 5; // small gap
+
+                    // Draw "-" before the number
+                    x_offset -= 10;
+                    draw_text_mut(&mut rgba_image, red, x_offset, info_y, info_scale, &font, "-");
+                    x_offset -= 15; // gap before next item
+                }
+            } else if part.contains("insertion") {
+                // Extract number and draw in green
+                if let Some(space_pos) = part.find(' ') {
+                    let num = &part[..space_pos];
+                    let text_width = (num.len() as f32 * 10.0) as i32;
+                    x_offset -= text_width;
+                    draw_text_mut(&mut rgba_image, green, x_offset, info_y, info_scale, &font, num);
+                    x_offset -= 5; // small gap
+
+                    // Draw "+" before the number
+                    x_offset -= 10;
+                    draw_text_mut(&mut rgba_image, green, x_offset, info_y, info_scale, &font, "+");
+                    x_offset -= 15; // gap before next item
+                }
+            }
+        }
+    }
 
     Ok(DynamicImage::ImageRgba8(rgba_image))
 }
