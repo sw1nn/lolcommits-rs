@@ -33,6 +33,7 @@
             # Additional libraries
             libgit2
             openssl
+            fontconfig.dev
           ];
 
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";

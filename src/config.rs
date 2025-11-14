@@ -5,8 +5,8 @@ use xdg::BaseDirectories;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    #[serde(default = "default_font_path")]
-    pub font_path: String,
+    #[serde(default = "default_font_name")]
+    pub font_name: String,
 
     #[serde(default = "default_background_path")]
     pub background_path: String,
@@ -30,8 +30,8 @@ pub struct Config {
     pub center_person: bool,
 }
 
-fn default_font_path() -> String {
-    "/usr/share/fonts/TTF/InputSansCompressedNerdFont-Bold.ttf".to_string()
+fn default_font_name() -> String {
+    "monospace".to_string()
 }
 
 fn default_background_path() -> String {
@@ -71,7 +71,7 @@ fn default_center_person() -> bool {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            font_path: default_font_path(),
+            font_name: default_font_name(),
             background_path: default_background_path(),
             camera_index: default_camera_index(),
             camera_warmup_frames: default_camera_warmup_frames(),

@@ -25,3 +25,4 @@ sha2 = "0.10"
 toml = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 xdg = "2.5"
+fontconfig = "0.8"

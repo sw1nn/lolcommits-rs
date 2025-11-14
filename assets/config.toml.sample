@@ -3,12 +3,14 @@
 # Place this file at: ~/.config/lolcommits-rs/config.toml
 # (or $XDG_CONFIG_HOME/lolcommits-rs/config.toml)
 
-# Path to the font file to use for text rendering
-# Common locations:
-#   - Linux: /usr/share/fonts/TTF/
-#   - macOS: /System/Library/Fonts/ or ~/Library/Fonts/
-#   - Windows: C:\Windows\Fonts\
-font_path = "/usr/share/fonts/TTF/InputSansCompressedNerdFont-Bold.ttf"
+# Font name to use for text rendering (resolved via fontconfig)
+# Common font names:
+#   - "monospace" (default, uses system monospace font)
+#   - "DejaVu Sans"
+#   - "Liberation Sans"
+#   - "Arial"
+# If the font is not found, falls back to monospace
+font_name = "monospace"
 
 # Path to the background image
 # This image will be composited behind the segmented person

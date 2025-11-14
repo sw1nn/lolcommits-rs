@@ -13,6 +13,38 @@ use opencv::prelude::*;
 use std::env;
 use std::path::{Path, PathBuf};
 
+/// Resolve font name to font file path using fontconfig
+///
+/// Uses fontconfig to find the font file for the given font name.
+/// Falls back to monospace if the requested font is not found.
+fn resolve_font_path(font_name: &str) -> Result<PathBuf> {
+    let fc = fontconfig::Fontconfig::new()
+        .ok_or_else(|| std::io::Error::other("Failed to initialize fontconfig"))?;
+
+    // Try to find the requested font
+    let font = fc.find(font_name, None);
+
+    if let Some(font) = font {
+        let path = &font.path;
+        tracing::debug!(font_name = %font_name, path = %path.display(), "Found font via fontconfig");
+        return Ok(path.clone());
+    }
+
+    // Fallback to monospace (universally available)
+    tracing::warn!(font_name = %font_name, "Font not found, trying fallback: monospace");
+    let fallback = fc.find("monospace", None);
+
+    if let Some(font) = fallback {
+        let path = &font.path;
+        tracing::info!(path = %path.display(), "Using fallback font");
+        return Ok(path.clone());
+    }
+
+    Err(std::io::Error::other(
+        format!("Font '{}' not found and monospace fallback unavailable", font_name)
+    ).into())
+}
+
 /// Resolve background image path according to XDG Base Directory specification
 ///
 /// If the path starts with '/', treat it as an absolute path.
@@ -328,9 +360,13 @@ pub fn overlay_chyron(
     sha: &str,
     config: &Config,
 ) -> Result<DynamicImage> {
-    // Load font from configured path - need to leak for FontRef lifetime
-    let font_data = std::fs::read(&config.font_path).map_err(|e| {
-        std::io::Error::other(format!("Failed to read font from {}: {}", config.font_path, e))
+    // Resolve font using fontconfig
+    let font_path = resolve_font_path(&config.font_name)?;
+    tracing::debug!(font_name = %config.font_name, font_path = %font_path.display(), "Resolved font");
+
+    // Load font - need to leak for FontRef lifetime
+    let font_data = std::fs::read(&font_path).map_err(|e| {
+        std::io::Error::other(format!("Failed to read font from {}: {}", font_path.display(), e))
     })?;
 
     let font_data_static: &'static [u8] = Box::leak(font_data.into_boxed_slice());
