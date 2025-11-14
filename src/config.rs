@@ -6,7 +6,19 @@ use xdg::BaseDirectories;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default = "default_font_name")]
-    pub font_name: String,
+    pub default_font_name: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_font_name: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub info_font_name: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sha_font_name: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats_font_name: Option<String>,
 
     #[serde(default = "default_background_path")]
     pub background_path: String,
@@ -71,7 +83,11 @@ fn default_center_person() -> bool {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            font_name: default_font_name(),
+            default_font_name: default_font_name(),
+            message_font_name: None,
+            info_font_name: None,
+            sha_font_name: None,
+            stats_font_name: None,
             background_path: default_background_path(),
             camera_index: default_camera_index(),
             camera_warmup_frames: default_camera_warmup_frames(),
@@ -80,6 +96,28 @@ impl Default for Config {
             info_font_size: default_info_font_size(),
             center_person: default_center_person(),
         }
+    }
+}
+
+impl Config {
+    /// Get the font name for messages, falling back to default_font_name
+    pub fn get_message_font_name(&self) -> &str {
+        self.message_font_name.as_deref().unwrap_or(&self.default_font_name)
+    }
+
+    /// Get the font name for info, falling back to default_font_name
+    pub fn get_info_font_name(&self) -> &str {
+        self.info_font_name.as_deref().unwrap_or(&self.default_font_name)
+    }
+
+    /// Get the font name for SHA, falling back to default_font_name
+    pub fn get_sha_font_name(&self) -> &str {
+        self.sha_font_name.as_deref().unwrap_or(&self.default_font_name)
+    }
+
+    /// Get the font name for stats, falling back to default_font_name
+    pub fn get_stats_font_name(&self) -> &str {
+        self.stats_font_name.as_deref().unwrap_or(&self.default_font_name)
     }
 }
 
@@ -174,5 +212,90 @@ mod tests {
         let toml_str = toml::to_string(&config).unwrap();
         let parsed: Config = toml::from_str(&toml_str).unwrap();
         assert_eq!(config.camera_index, parsed.camera_index);
+    }
+
+    #[test]
+    fn test_font_fallback_all_none() {
+        // When all font fields are None, everything should fall back to default_font_name
+        let config = Config {
+            default_font_name: "DejaVu Sans".to_string(),
+            message_font_name: None,
+            info_font_name: None,
+            sha_font_name: None,
+            stats_font_name: None,
+            ..Default::default()
+        };
+
+        assert_eq!(config.get_message_font_name(), "DejaVu Sans");
+        assert_eq!(config.get_info_font_name(), "DejaVu Sans");
+        assert_eq!(config.get_sha_font_name(), "DejaVu Sans");
+        assert_eq!(config.get_stats_font_name(), "DejaVu Sans");
+    }
+
+    #[test]
+    fn test_font_fallback_mixed() {
+        // When some fonts are specified and others are None
+        let config = Config {
+            default_font_name: "monospace".to_string(),
+            message_font_name: Some("Arial".to_string()),
+            info_font_name: None,
+            sha_font_name: Some("Courier New".to_string()),
+            stats_font_name: None,
+            ..Default::default()
+        };
+
+        assert_eq!(config.get_message_font_name(), "Arial");
+        assert_eq!(config.get_info_font_name(), "monospace");
+        assert_eq!(config.get_sha_font_name(), "Courier New");
+        assert_eq!(config.get_stats_font_name(), "monospace");
+    }
+
+    #[test]
+    fn test_default_font_name_is_monospace() {
+        // Verify that the default font name is "monospace"
+        let config = Config::default();
+        assert_eq!(config.default_font_name, "monospace");
+        assert_eq!(config.get_message_font_name(), "monospace");
+        assert_eq!(config.get_info_font_name(), "monospace");
+        assert_eq!(config.get_sha_font_name(), "monospace");
+        assert_eq!(config.get_stats_font_name(), "monospace");
+    }
+
+    #[test]
+    fn test_font_serialization_omits_none() {
+        // Verify that None values are not serialized in TOML
+        let config = Config {
+            default_font_name: "monospace".to_string(),
+            message_font_name: Some("Arial".to_string()),
+            info_font_name: None,
+            sha_font_name: None,
+            stats_font_name: None,
+            ..Default::default()
+        };
+
+        let toml_str = toml::to_string(&config).unwrap();
+
+        // Should contain message_font_name
+        assert!(toml_str.contains("message_font_name"));
+
+        // Should NOT contain the None fields
+        assert!(!toml_str.contains("info_font_name"));
+        assert!(!toml_str.contains("sha_font_name"));
+        assert!(!toml_str.contains("stats_font_name"));
+    }
+
+    #[test]
+    fn test_font_deserialization_missing_fields() {
+        // When loading a config that doesn't specify optional fonts
+        let toml_str = r#"
+            default_font_name = "Liberation Sans"
+            camera_index = 0
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+
+        assert_eq!(config.default_font_name, "Liberation Sans");
+        assert_eq!(config.message_font_name, None);
+        assert_eq!(config.get_message_font_name(), "Liberation Sans");
     }
 }

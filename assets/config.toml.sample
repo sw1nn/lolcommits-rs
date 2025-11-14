@@ -3,14 +3,22 @@
 # Place this file at: ~/.config/lolcommits-rs/config.toml
 # (or $XDG_CONFIG_HOME/lolcommits-rs/config.toml)
 
-# Font name to use for text rendering (resolved via fontconfig)
-# Common font names:
-#   - "monospace" (default, uses system monospace font)
-#   - "DejaVu Sans"
-#   - "Liberation Sans"
-#   - "Arial"
-# If the font is not found, falls back to monospace
-font_name = "monospace"
+# Font names for different text elements (resolved via fontconfig)
+# All default to "monospace" which uses the system monospace font
+# Common font names: "DejaVu Sans", "Liberation Sans", "Arial", "Courier New"
+# If a font is not found, falls back to monospace
+
+# Font for the commit message (top line)
+message_font_name = "monospace"
+
+# Font for the info line (commit type, scope, repo name)
+info_font_name = "monospace"
+
+# Font for the SHA (top right)
+sha_font_name = "monospace"
+
+# Font for git stats (+N -N on bottom right)
+stats_font_name = "monospace"
 
 # Path to the background image
 # This image will be composited behind the segmented person

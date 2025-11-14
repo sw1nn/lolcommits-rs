@@ -13,6 +13,25 @@ use opencv::prelude::*;
 use std::env;
 use std::path::{Path, PathBuf};
 
+/// Load a font by name using fontconfig and return a FontRef
+///
+/// The font data is leaked to satisfy FontRef's lifetime requirements.
+fn load_font(font_name: &str) -> Result<FontRef<'static>> {
+    let font_path = resolve_font_path(font_name)?;
+    tracing::debug!(font_name = %font_name, font_path = %font_path.display(), "Loading font");
+
+    let font_data = std::fs::read(&font_path).map_err(|e| {
+        std::io::Error::other(format!("Failed to read font from {}: {}", font_path.display(), e))
+    })?;
+
+    let font_data_static: &'static [u8] = Box::leak(font_data.into_boxed_slice());
+    let font = FontRef::try_from_slice(font_data_static).map_err(|e| {
+        std::io::Error::other(format!("Failed to parse font: {}", e))
+    })?;
+
+    Ok(font)
+}
+
 /// Resolve font name to font file path using fontconfig
 ///
 /// Uses fontconfig to find the font file for the given font name.
@@ -360,19 +379,11 @@ pub fn overlay_chyron(
     sha: &str,
     config: &Config,
 ) -> Result<DynamicImage> {
-    // Resolve font using fontconfig
-    let font_path = resolve_font_path(&config.font_name)?;
-    tracing::debug!(font_name = %config.font_name, font_path = %font_path.display(), "Resolved font");
-
-    // Load font - need to leak for FontRef lifetime
-    let font_data = std::fs::read(&font_path).map_err(|e| {
-        std::io::Error::other(format!("Failed to read font from {}: {}", font_path.display(), e))
-    })?;
-
-    let font_data_static: &'static [u8] = Box::leak(font_data.into_boxed_slice());
-    let font = FontRef::try_from_slice(font_data_static).map_err(|e| {
-        std::io::Error::other(format!("Failed to parse font: {}", e))
-    })?;
+    // Resolve fonts using fontconfig (with fallback to default_font_name)
+    let message_font = load_font(config.get_message_font_name())?;
+    let info_font = load_font(config.get_info_font_name())?;
+    let sha_font = load_font(config.get_sha_font_name())?;
+    let stats_font = load_font(config.get_stats_font_name())?;
 
     // Work directly with RGBA if already RGBA, otherwise convert
     let mut rgba_image = match image {
@@ -415,7 +426,7 @@ pub fn overlay_chyron(
         15,
         title_y,
         title_scale,
-        &font,
+        &message_font,
         message,
     );
 
@@ -431,7 +442,7 @@ pub fn overlay_chyron(
         15,
         info_y,
         info_scale,
-        &font,
+        &info_font,
         &info_text,
     );
 
@@ -464,7 +475,7 @@ pub fn overlay_chyron(
             stats_start_x,
             title_y,
             title_scale,
-            &font,
+            &sha_font,
             sha_short,
         );
     }
@@ -493,7 +504,7 @@ pub fn overlay_chyron(
                         x_offset,
                         info_y,
                         info_scale,
-                        &font,
+                        &stats_font,
                         "+",
                     );
                     x_offset += 10;
@@ -505,7 +516,7 @@ pub fn overlay_chyron(
                         x_offset,
                         info_y,
                         info_scale,
-                        &font,
+                        &stats_font,
                         num,
                     );
                     let text_width = (num.len() as f32 * 10.0) as i32;
@@ -524,7 +535,7 @@ pub fn overlay_chyron(
                         x_offset,
                         info_y,
                         info_scale,
-                        &font,
+                        &stats_font,
                         "-",
                     );
                     x_offset += 10;
@@ -536,7 +547,7 @@ pub fn overlay_chyron(
                         x_offset,
                         info_y,
                         info_scale,
-                        &font,
+                        &stats_font,
                         num,
                     );
                     let text_width = (num.len() as f32 * 10.0) as i32;
@@ -548,4 +559,72 @@ pub fn overlay_chyron(
     }
 
     Ok(DynamicImage::ImageRgba8(rgba_image))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_font_path_monospace() {
+        // Monospace should always be available
+        let result = resolve_font_path("monospace");
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.exists());
+        assert!(path.is_file());
+    }
+
+    #[test]
+    fn test_resolve_font_path_nonexistent_falls_back() {
+        // Nonexistent font should fall back to monospace
+        let result = resolve_font_path("ThisFontDefinitelyDoesNotExist12345");
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn test_resolve_background_path_absolute() {
+        // Test absolute path resolution
+        use std::fs;
+        use std::io::Write;
+
+        // Create a temporary file
+        let temp_dir = std::env::temp_dir();
+        let temp_file = temp_dir.join("test_background.png");
+        let mut file = fs::File::create(&temp_file).unwrap();
+        file.write_all(b"fake png data").unwrap();
+
+        let result = resolve_background_path(temp_file.to_str().unwrap());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), temp_file);
+
+        // Cleanup
+        fs::remove_file(&temp_file).ok();
+    }
+
+    #[test]
+    fn test_resolve_background_path_absolute_nonexistent() {
+        // Test absolute path that doesn't exist
+        let result = resolve_background_path("/this/path/definitely/does/not/exist.png");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_background_path_relative() {
+        // Test relative path (basename search)
+        // This will likely fail unless we have a background in XDG dirs,
+        // but it tests the code path
+        let result = resolve_background_path("nonexistent_background_12345");
+        // We expect this to fail since the background doesn't exist
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_font_monospace() {
+        // Test loading monospace font
+        let result = load_font("monospace");
+        assert!(result.is_ok());
+    }
 }
