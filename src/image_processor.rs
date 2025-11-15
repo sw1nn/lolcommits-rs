@@ -392,7 +392,9 @@ pub fn overlay_chyron(
     commit_type: &str,
     scope: &str,
     repo_name: &str,
-    stats: &str,
+    files_changed: u32,
+    insertions: u32,
+    deletions: u32,
     sha: &str,
     config: &Config,
 ) -> Result<DynamicImage> {
@@ -465,8 +467,8 @@ pub fn overlay_chyron(
 
     // Calculate stats width first to determine left-aligned starting position
     // Format is: (N) +X -Y with k/M suffixes for large numbers
-    let stats_start_x = if !stats.is_empty() {
-        let (files_changed, insertions, deletions) = crate::git::parse_diff_stats(stats);
+    let has_stats = files_changed > 0 || insertions > 0 || deletions > 0;
+    let stats_start_x = if has_stats {
         let mut total_width = 0;
 
         // Files changed: (N)
@@ -511,15 +513,12 @@ pub fn overlay_chyron(
     // Draw colorized stats on the right side, left-aligned with SHA
     // Format: (N) +X -Y where N=files changed (yellow), X=insertions (green), Y=deletions (red)
     // Numbers over 999 are formatted with k/M suffixes (e.g., 1.2k, 1.5M)
-    if !stats.is_empty() {
+    if has_stats {
         let yellow = Rgba([255u8, 255u8, 0u8, 255u8]);
         let green = Rgba([0u8, 255u8, 0u8, 255u8]);
         let red = Rgba([255u8, 0u8, 0u8, 255u8]);
 
         let mut x_offset = stats_start_x;
-
-        // Parse stats using shared function
-        let (files_changed, insertions, deletions) = crate::git::parse_diff_stats(stats);
 
         // Draw files changed in parentheses (yellow)
         if files_changed > 0 {

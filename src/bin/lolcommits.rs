@@ -49,8 +49,15 @@ fn main() -> Result<()> {
 
     let repo_name = git::get_repo_name()?;
     let branch_name = git::get_branch_name()?;
-    let diff_stat = git::get_diff_shortstat()?;
-    tracing::info!(repo_name = %repo_name, branch = %branch_name, diff_stat = %diff_stat, "Got git info");
+    let (files_changed, insertions, deletions) = git::get_diff_stats(&args.sha)?;
+    tracing::info!(
+        repo_name = %repo_name,
+        branch = %branch_name,
+        files_changed = files_changed,
+        insertions = insertions,
+        deletions = deletions,
+        "Got git info"
+    );
 
     let image = camera::capture_image(&config.camera_device)?;
     tracing::info!("Captured image from webcam");
@@ -70,7 +77,9 @@ fn main() -> Result<()> {
             &commit_type,
             &scope,
             &repo_name,
-            &diff_stat,
+            files_changed,
+            insertions,
+            deletions,
             &args.sha,
             &config,
         )?;
@@ -85,7 +94,20 @@ fn main() -> Result<()> {
 
     // Prepare metadata
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let (files_changed, insertions, deletions) = git::parse_diff_stats(&diff_stat);
+    // Format diff stats for metadata storage (human-readable format)
+    let diff_stats = if files_changed > 0 {
+        let mut parts = vec![format!("{} file{} changed", files_changed, if files_changed == 1 { "" } else { "s" })];
+        if insertions > 0 {
+            parts.push(format!("{} insertion{}(+)", insertions, if insertions == 1 { "" } else { "s" }));
+        }
+        if deletions > 0 {
+            parts.push(format!("{} deletion{}(-)", deletions, if deletions == 1 { "" } else { "s" }));
+        }
+        parts.join(", ")
+    } else {
+        String::new()
+    };
+
     let metadata = image_metadata::CommitMetadata {
         commit_sha: args.sha.clone(),
         commit_message: message_without_prefix.clone(),
@@ -94,7 +116,7 @@ fn main() -> Result<()> {
         timestamp,
         repo_name: repo_name.clone(),
         branch_name: branch_name.clone(),
-        diff_stats: diff_stat.clone(),
+        diff_stats,
         files_changed,
         insertions,
         deletions,

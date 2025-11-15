@@ -15,17 +15,46 @@ pub fn get_repo_name() -> Result<String> {
     Ok(name.to_string())
 }
 
-pub fn get_diff_shortstat() -> Result<String> {
+/// Get diff stats for a commit using git show --numstat
+/// Returns a tuple of (files_changed, insertions, deletions)
+pub fn get_diff_stats(sha: &str) -> Result<(u32, u32, u32)> {
     let output = Command::new("git")
-        .args(["diff", "--cached", "--shortstat"])
+        .args(["show", "--numstat", "--format=", sha])
         .output()?;
 
     if !output.status.success() {
         return Err(GitCommandFailed);
     }
 
-    let stat = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(stat)
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut files_changed = 0;
+    let mut total_insertions = 0;
+    let mut total_deletions = 0;
+
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() >= 2 {
+            // Handle binary files (marked as "-")
+            if parts[0] != "-" {
+                if let Ok(insertions) = parts[0].parse::<u32>() {
+                    total_insertions += insertions;
+                }
+            }
+            if parts[1] != "-" {
+                if let Ok(deletions) = parts[1].parse::<u32>() {
+                    total_deletions += deletions;
+                }
+            }
+            files_changed += 1;
+        }
+    }
+
+    Ok((files_changed, total_insertions, total_deletions))
 }
 
 pub fn get_branch_name() -> Result<String> {
@@ -39,38 +68,6 @@ pub fn get_branch_name() -> Result<String> {
     }
 }
 
-/// Parse git diff shortstat output to extract files changed, insertions, and deletions
-/// Example input: "4 files changed, 137 insertions(+), 86 deletions(-)"
-/// Returns: (files_changed, insertions, deletions)
-pub fn parse_diff_stats(stats: &str) -> (u32, u32, u32) {
-    let mut files_changed = 0;
-    let mut insertions = 0;
-    let mut deletions = 0;
-
-    // Split by comma and parse each part
-    for part in stats.split(',') {
-        let part = part.trim();
-
-        if part.contains("file") && part.contains("changed") {
-            // Extract number before "file"
-            if let Some(num_str) = part.split_whitespace().next() {
-                files_changed = num_str.parse().unwrap_or(0);
-            }
-        } else if part.contains("insertion") {
-            // Extract number before "insertion"
-            if let Some(num_str) = part.split_whitespace().next() {
-                insertions = num_str.parse().unwrap_or(0);
-            }
-        } else if part.contains("deletion") {
-            // Extract number before "deletion"
-            if let Some(num_str) = part.split_whitespace().next() {
-                deletions = num_str.parse().unwrap_or(0);
-            }
-        }
-    }
-
-    (files_changed, insertions, deletions)
-}
 
 fn open_repo() -> Result<Repository> {
     let current_dir = env::current_dir()?;
@@ -99,10 +96,14 @@ mod tests {
     }
 
     #[test]
-    fn test_get_diff_shortstat() {
-        // Should return Ok even if there are no staged changes
-        // The string might be empty but the operation should succeed
-        let result = get_diff_shortstat();
+    fn test_get_diff_stats() {
+        // Should return Ok for HEAD commit with valid stats tuple
+        let result = get_diff_stats("HEAD");
         assert!(result.is_ok());
+        let (files, insertions, deletions) = result.unwrap();
+        // All values should be non-negative (may be 0 for empty commits)
+        assert!(files >= 0);
+        assert!(insertions >= 0);
+        assert!(deletions >= 0);
     }
 }
