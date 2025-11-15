@@ -195,33 +195,112 @@ fn open_repo() -> Result<Repository> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    // Helper function to create a temporary git repository for testing
+    fn create_test_repo() -> TempDir {
+        let temp_dir = TempDir::new().unwrap();
+        let repo = git2::Repository::init(temp_dir.path()).unwrap();
+
+        // Configure user for commits
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "Test User").unwrap();
+        config.set_str("user.email", "test@example.com").unwrap();
+
+        // Create an initial commit
+        let mut index = repo.index().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = repo.signature().unwrap();
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .unwrap();
+
+        // Create a second commit with some changes to test diff stats
+        fs::write(temp_dir.path().join("test.txt"), "test content\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("test.txt")).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Add test file",
+            &tree,
+            &[&parent],
+        )
+        .unwrap();
+
+        temp_dir
+    }
 
     #[test]
     fn test_get_repo_name() {
-        // This test will work when run from within a git repo
-        // Since we're in sw1nn-lolcommits-rs repo, it should succeed
+        let temp_dir = create_test_repo();
+
+        // Change to the test repo directory
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        // Get the expected name from the actual directory we're in
+        let repo_name = temp_dir.path().file_name().unwrap().to_str().unwrap();
+
         let result = get_repo_name();
         assert!(result.is_ok());
-        let repo_name = result.unwrap();
-        assert_eq!(repo_name, "sw1nn-lolcommits-rs");
+        let name = result.unwrap();
+        assert_eq!(name, repo_name);
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
     fn test_open_repo() {
-        // Should successfully open the current repo
+        let temp_dir = create_test_repo();
+
+        // Change to the test repo directory
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
         let result = open_repo();
         assert!(result.is_ok());
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
     fn test_get_diff_stats() {
+        let temp_dir = create_test_repo();
+
+        // Change to the test repo directory
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
         // Should return Ok for HEAD commit with valid stats
         let result = get_diff_stats("HEAD");
         assert!(result.is_ok());
         let stats = result.unwrap();
-        // All values should be non-negative (may be 0 for empty commits)
-        assert!(stats.files_changed >= 0);
-        assert!(stats.insertions >= 0);
-        assert!(stats.deletions >= 0);
+
+        // The second commit added a file, so we should have:
+        // - 1 file changed
+        // - 1 insertion (the line we added)
+        // - 0 deletions
+        assert_eq!(stats.files_changed, 1);
+        assert_eq!(stats.insertions, 1);
+        assert_eq!(stats.deletions, 0);
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
     }
 }
