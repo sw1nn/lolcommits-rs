@@ -29,10 +29,10 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
 
     // Override chyron setting if CLI flags are provided
     if args.chyron {
-        config.enable_chyron = true;
+        config.general.enable_chyron = true;
         tracing::debug!("Chyron enabled via --chyron flag");
     } else if args.no_chyron {
-        config.enable_chyron = false;
+        config.general.enable_chyron = false;
         tracing::debug!("Chyron disabled via --no-chyron flag");
     }
 
@@ -50,7 +50,7 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
     );
 
     // Capture image from webcam
-    let image = camera::capture_image(&config.camera_device)?;
+    let image = camera::capture_image(&config.client.camera_device)?;
     tracing::info!("Captured image from webcam");
 
     // Parse commit message
@@ -72,7 +72,7 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
         files_changed: stats.files_changed,
         insertions: stats.insertions,
         deletions: stats.deletions,
-        enable_chyron: config.enable_chyron,
+        enable_chyron: config.general.enable_chyron,
     };
 
     // Encode image to PNG bytes
@@ -93,12 +93,12 @@ fn upload_to_server(
     image_bytes: Vec<u8>,
     metadata: UploadMetadata,
 ) -> Result<()> {
-    let url = format!("{}/api/upload", config.server_url);
+    let url = format!("{}/api/upload", config.client.server_url);
     tracing::info!(url = %url, "Uploading to server");
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(
-            config.server_upload_timeout_secs,
+            config.client.server_upload_timeout_secs,
         ))
         .build()?;
 

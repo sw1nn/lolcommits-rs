@@ -117,7 +117,7 @@ async fn list_images() -> Response {
 async fn get_config() -> Response {
     match config::Config::load() {
         Ok(cfg) => Json(ConfigResponse {
-            gallery_title: cfg.gallery_title,
+            gallery_title: cfg.server.gallery_title,
         })
         .into_response(),
         Err(e) => {

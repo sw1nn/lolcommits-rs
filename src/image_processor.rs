@@ -334,7 +334,7 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
     let rgb_bytes: Vec<u8> = rgb_mat.data_bytes()?.to_vec();
 
     // Load background image using image crate
-    let bg_image_path = resolve_background_path(&config.background_path)?;
+    let bg_image_path = resolve_background_path(&config.server.background_path)?;
     tracing::debug!(path = %bg_image_path.display(), "Loading background image");
     let bg_dynamic = image::open(&bg_image_path)?;
     let bg_resized = bg_dynamic.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
@@ -393,10 +393,10 @@ pub fn overlay_chyron(
     config: &Config,
 ) -> Result<DynamicImage> {
     // Resolve fonts using fontconfig (with fallback to default_font_name)
-    let message_font = load_font(config.get_message_font_name())?;
-    let info_font = load_font(config.get_info_font_name())?;
-    let sha_font = load_font(config.get_sha_font_name())?;
-    let stats_font = load_font(config.get_stats_font_name())?;
+    let message_font = load_font(config.general.get_message_font_name())?;
+    let info_font = load_font(config.general.get_info_font_name())?;
+    let sha_font = load_font(config.general.get_sha_font_name())?;
+    let stats_font = load_font(config.general.get_stats_font_name())?;
 
     // Work directly with RGBA if already RGBA, otherwise convert
     let mut rgba_image = match image {
@@ -409,7 +409,7 @@ pub fn overlay_chyron(
     let y_start = height - chyron_height;
 
     // Manually apply semi-transparent black with proper alpha blending
-    let overlay_alpha = config.chyron_opacity;
+    let overlay_alpha = config.general.chyron_opacity;
     for y in y_start..height {
         for x in 0..width {
             let pixel = rgba_image.get_pixel_mut(x, y);
@@ -429,8 +429,8 @@ pub fn overlay_chyron(
     let yellow = Rgba([255u8, 255u8, 0u8, 255u8]);
     let grey = Rgba([180u8, 180u8, 180u8, 255u8]);
 
-    let title_scale = PxScale::from(config.title_font_size);
-    let info_scale = PxScale::from(config.info_font_size);
+    let title_scale = PxScale::from(config.general.title_font_size);
+    let info_scale = PxScale::from(config.general.info_font_size);
 
     let title_y = y_start as i32 + 10;
     draw_text_mut(

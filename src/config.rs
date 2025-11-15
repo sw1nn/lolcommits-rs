@@ -5,6 +5,18 @@ use xdg::BaseDirectories;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default)]
+    pub general: GeneralConfig,
+
+    #[serde(default)]
+    pub client: ClientConfig,
+
+    #[serde(default)]
+    pub server: ServerConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeneralConfig {
     #[serde(default = "default_font_name")]
     pub default_font_name: String,
 
@@ -20,15 +32,6 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stats_font_name: Option<String>,
 
-    #[serde(default = "default_background_path")]
-    pub background_path: String,
-
-    #[serde(default = "default_camera_device")]
-    pub camera_device: String,
-
-    #[serde(default = "default_camera_warmup_frames")]
-    pub camera_warmup_frames: usize,
-
     #[serde(default = "default_chyron_opacity")]
     pub chyron_opacity: f32,
 
@@ -38,20 +41,35 @@ pub struct Config {
     #[serde(default = "default_info_font_size")]
     pub info_font_size: f32,
 
-    #[serde(default = "default_center_person")]
-    pub center_person: bool,
-
     #[serde(default = "default_enable_chyron")]
     pub enable_chyron: bool,
+}
 
-    #[serde(default = "default_gallery_title")]
-    pub gallery_title: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientConfig {
+    #[serde(default = "default_camera_device")]
+    pub camera_device: String,
+
+    #[serde(default = "default_camera_warmup_frames")]
+    pub camera_warmup_frames: usize,
 
     #[serde(default = "default_server_url")]
     pub server_url: String,
 
     #[serde(default = "default_server_upload_timeout_secs")]
     pub server_upload_timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerConfig {
+    #[serde(default = "default_background_path")]
+    pub background_path: String,
+
+    #[serde(default = "default_center_person")]
+    pub center_person: bool,
+
+    #[serde(default = "default_gallery_title")]
+    pub gallery_title: String,
 }
 
 fn default_font_name() -> String {
@@ -108,7 +126,7 @@ fn default_server_upload_timeout_secs() -> u64 {
     30
 }
 
-impl Default for Config {
+impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
             default_font_name: default_font_name(),
@@ -116,22 +134,46 @@ impl Default for Config {
             info_font_name: None,
             sha_font_name: None,
             stats_font_name: None,
-            background_path: default_background_path(),
-            camera_device: default_camera_device(),
-            camera_warmup_frames: default_camera_warmup_frames(),
             chyron_opacity: default_chyron_opacity(),
             title_font_size: default_title_font_size(),
             info_font_size: default_info_font_size(),
-            center_person: default_center_person(),
             enable_chyron: default_enable_chyron(),
-            gallery_title: default_gallery_title(),
+        }
+    }
+}
+
+impl Default for ClientConfig {
+    fn default() -> Self {
+        Self {
+            camera_device: default_camera_device(),
+            camera_warmup_frames: default_camera_warmup_frames(),
             server_url: default_server_url(),
             server_upload_timeout_secs: default_server_upload_timeout_secs(),
         }
     }
 }
 
-impl Config {
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            background_path: default_background_path(),
+            center_person: default_center_person(),
+            gallery_title: default_gallery_title(),
+        }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            general: GeneralConfig::default(),
+            client: ClientConfig::default(),
+            server: ServerConfig::default(),
+        }
+    }
+}
+
+impl GeneralConfig {
     /// Get the font name for messages, falling back to default_font_name
     pub fn get_message_font_name(&self) -> &str {
         self.message_font_name
@@ -221,10 +263,10 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(config.camera_device, "0");
-        assert_eq!(config.camera_warmup_frames, 3);
-        assert_eq!(config.chyron_opacity, 0.75);
-        assert!(config.center_person);
+        assert_eq!(config.client.camera_device, "0");
+        assert_eq!(config.client.camera_warmup_frames, 3);
+        assert_eq!(config.general.chyron_opacity, 0.75);
+        assert!(config.server.center_person);
     }
 
     #[test]
@@ -232,65 +274,70 @@ mod tests {
         let config = Config::default();
         let toml_str = toml::to_string(&config).unwrap();
         let parsed: Config = toml::from_str(&toml_str).unwrap();
-        assert_eq!(config.camera_device, parsed.camera_device);
+        assert_eq!(config.client.camera_device, parsed.client.camera_device);
     }
 
     #[test]
     fn test_font_fallback_all_none() {
-        // When all font fields are None, everything should fall back to default_font_name
         let config = Config {
-            default_font_name: "DejaVu Sans".to_string(),
-            message_font_name: None,
-            info_font_name: None,
-            sha_font_name: None,
-            stats_font_name: None,
+            general: GeneralConfig {
+                default_font_name: "DejaVu Sans".to_string(),
+                message_font_name: None,
+                info_font_name: None,
+                sha_font_name: None,
+                stats_font_name: None,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
-        assert_eq!(config.get_message_font_name(), "DejaVu Sans");
-        assert_eq!(config.get_info_font_name(), "DejaVu Sans");
-        assert_eq!(config.get_sha_font_name(), "DejaVu Sans");
-        assert_eq!(config.get_stats_font_name(), "DejaVu Sans");
+        assert_eq!(config.general.get_message_font_name(), "DejaVu Sans");
+        assert_eq!(config.general.get_info_font_name(), "DejaVu Sans");
+        assert_eq!(config.general.get_sha_font_name(), "DejaVu Sans");
+        assert_eq!(config.general.get_stats_font_name(), "DejaVu Sans");
     }
 
     #[test]
     fn test_font_fallback_mixed() {
-        // When some fonts are specified and others are None
         let config = Config {
-            default_font_name: "monospace".to_string(),
-            message_font_name: Some("Arial".to_string()),
-            info_font_name: None,
-            sha_font_name: Some("Courier New".to_string()),
-            stats_font_name: None,
+            general: GeneralConfig {
+                default_font_name: "monospace".to_string(),
+                message_font_name: Some("Arial".to_string()),
+                info_font_name: None,
+                sha_font_name: Some("Courier New".to_string()),
+                stats_font_name: None,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
-        assert_eq!(config.get_message_font_name(), "Arial");
-        assert_eq!(config.get_info_font_name(), "monospace");
-        assert_eq!(config.get_sha_font_name(), "Courier New");
-        assert_eq!(config.get_stats_font_name(), "monospace");
+        assert_eq!(config.general.get_message_font_name(), "Arial");
+        assert_eq!(config.general.get_info_font_name(), "monospace");
+        assert_eq!(config.general.get_sha_font_name(), "Courier New");
+        assert_eq!(config.general.get_stats_font_name(), "monospace");
     }
 
     #[test]
     fn test_default_font_name_is_monospace() {
-        // Verify that the default font name is "monospace"
         let config = Config::default();
-        assert_eq!(config.default_font_name, "monospace");
-        assert_eq!(config.get_message_font_name(), "monospace");
-        assert_eq!(config.get_info_font_name(), "monospace");
-        assert_eq!(config.get_sha_font_name(), "monospace");
-        assert_eq!(config.get_stats_font_name(), "monospace");
+        assert_eq!(config.general.default_font_name, "monospace");
+        assert_eq!(config.general.get_message_font_name(), "monospace");
+        assert_eq!(config.general.get_info_font_name(), "monospace");
+        assert_eq!(config.general.get_sha_font_name(), "monospace");
+        assert_eq!(config.general.get_stats_font_name(), "monospace");
     }
 
     #[test]
     fn test_font_serialization_omits_none() {
-        // Verify that None values are not serialized in TOML
         let config = Config {
-            default_font_name: "monospace".to_string(),
-            message_font_name: Some("Arial".to_string()),
-            info_font_name: None,
-            sha_font_name: None,
-            stats_font_name: None,
+            general: GeneralConfig {
+                default_font_name: "monospace".to_string(),
+                message_font_name: Some("Arial".to_string()),
+                info_font_name: None,
+                sha_font_name: None,
+                stats_font_name: None,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -307,16 +354,20 @@ mod tests {
 
     #[test]
     fn test_font_deserialization_missing_fields() {
-        // When loading a config that doesn't specify optional fonts
         let toml_str = r#"
+            [general]
             default_font_name = "Liberation Sans"
+
+            [client]
             camera_device = "0"
+
+            [server]
         "#;
 
         let config: Config = toml::from_str(toml_str).unwrap();
 
-        assert_eq!(config.default_font_name, "Liberation Sans");
-        assert_eq!(config.message_font_name, None);
-        assert_eq!(config.get_message_font_name(), "Liberation Sans");
+        assert_eq!(config.general.default_font_name, "Liberation Sans");
+        assert_eq!(config.general.message_font_name, None);
+        assert_eq!(config.general.get_message_font_name(), "Liberation Sans");
     }
 }
