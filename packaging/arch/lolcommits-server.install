@@ -1,0 +1,41 @@
+post_install() {
+  # Create lolcommits system user and group
+  if ! getent group lolcommits >/dev/null 2>&1; then
+    groupadd -r lolcommits
+  fi
+  if ! getent passwd lolcommits >/dev/null 2>&1; then
+    useradd -r -g lolcommits -d /var/lib/lolcommits -s /usr/bin/nologin -c "Lolcommits Server" lolcommits
+  fi
+
+  echo "To enable and start the lolcommitsd service, run:"
+  echo "  systemctl daemon-reload"
+  echo "  systemctl enable lolcommitsd.service"
+  echo "  systemctl start lolcommitsd.service"
+}
+
+post_upgrade() {
+  echo "Reloading systemd daemon..."
+  systemctl daemon-reload 2>/dev/null || true
+  echo "To restart the lolcommitsd service, run:"
+  echo "  systemctl restart lolcommitsd.service"
+}
+
+pre_remove() {
+  if systemctl is-active lolcommitsd.service >/dev/null 2>&1; then
+    echo "Stopping lolcommitsd service..."
+    systemctl stop lolcommitsd.service 2>/dev/null || true
+  fi
+  if systemctl is-enabled lolcommitsd.service >/dev/null 2>&1; then
+    echo "Disabling lolcommitsd service..."
+    systemctl disable lolcommitsd.service 2>/dev/null || true
+  fi
+}
+
+post_remove() {
+  echo "Reloading systemd daemon..."
+  systemctl daemon-reload 2>/dev/null || true
+  echo "Note: The lolcommits user and data in /var/lib/lolcommits have been preserved."
+  echo "To remove them, run:"
+  echo "  userdel lolcommits"
+  echo "  rm -rf /var/lib/lolcommits"
+}

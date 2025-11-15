@@ -1,0 +1,48 @@
+# Maintainer: Neale Swinnerton <neale@sw1nn.com>
+
+pkgbase=lolcommits
+pkgname=('lolcommits' 'lolcommits-server')
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Webcam snapshot tool for git commits'
+arch=('x86_64')
+url=https://github.com/sw1nn/sw1nn-lolcommits-rs
+license=('MIT')
+depends=('opencv' 'fontconfig')
+makedepends=('rust' 'clang' 'pkg-config')
+source=("${pkgbase}::git+https://github.com/sw1nn/sw1nn-lolcommits-rs?tag=v${pkgver}")
+sha256sums=('SKIP')
+
+prepare() {
+  cd ${pkgbase}
+  cargo fetch --locked --target "$CARCH-unknown-linux-gnu"
+}
+
+build() {
+  cd ${pkgbase}
+  export RUSTFLAGS="--remap-path-prefix=$srcdir=/usr/src/debug/$pkgbase"
+  cargo build --release --locked --offline
+}
+
+check() {
+  cd ${pkgbase}
+  cargo test --locked --offline
+}
+
+package_lolcommits() {
+  pkgdesc='Webcam snapshot client for git commits'
+  depends=('opencv' 'gcc-libs')
+
+  cd ${pkgbase}
+  install -Dt "$pkgdir"/usr/bin ${CARGO_TARGET_DIR:-target}/release/lolcommits
+}
+
+package_lolcommits-server() {
+  pkgdesc='Server daemon for processing lolcommits images'
+  depends=('opencv' 'fontconfig' 'gcc-libs')
+  install=lolcommits-server.install
+
+  cd ${pkgbase}
+  install -Dt "$pkgdir"/usr/bin ${CARGO_TARGET_DIR:-target}/release/lolcommitsd
+  install -Dm0644 -t "$pkgdir"/usr/lib/systemd/system assets/lolcommitsd.service
+}

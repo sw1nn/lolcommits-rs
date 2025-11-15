@@ -1,0 +1,34 @@
+[Unit]
+Description=Lolcommits Server Daemon
+Documentation=https://github.com/sw1nn/sw1nn-lolcommits-rs
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/lolcommitsd
+Restart=on-failure
+RestartSec=5s
+
+# Run as lolcommits user
+User=lolcommits
+Group=lolcommits
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lolcommits
+StateDirectory=lolcommits
+ConfigurationDirectory=lolcommits
+
+# Resource limits
+LimitNOFILE=65536
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lolcommitsd
+
+[Install]
+WantedBy=multi-user.target
