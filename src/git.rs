@@ -3,6 +3,29 @@ use git2::Repository;
 use std::env;
 use std::process::Command;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiffStats {
+    pub files_changed: u32,
+    pub insertions: u32,
+    pub deletions: u32,
+}
+
+impl DiffStats {
+    pub fn is_empty(&self) -> bool {
+        self.files_changed == 0 && self.insertions == 0 && self.deletions == 0
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CommitMetadata {
+    pub message: String,
+    pub commit_type: String,
+    pub scope: String,
+    pub repo_name: String,
+    pub sha: String,
+    pub stats: DiffStats,
+}
+
 pub fn get_repo_name() -> Result<String> {
     let repo = open_repo()?;
 
@@ -16,8 +39,7 @@ pub fn get_repo_name() -> Result<String> {
 }
 
 /// Get diff stats for a commit using git show --numstat
-/// Returns a tuple of (files_changed, insertions, deletions)
-pub fn get_diff_stats(sha: &str) -> Result<(u32, u32, u32)> {
+pub fn get_diff_stats(sha: &str) -> Result<DiffStats> {
     let output = Command::new("git")
         .args(["show", "--numstat", "--format=", sha])
         .output()?;
@@ -54,7 +76,11 @@ pub fn get_diff_stats(sha: &str) -> Result<(u32, u32, u32)> {
         }
     }
 
-    Ok((files_changed, total_insertions, total_deletions))
+    Ok(DiffStats {
+        files_changed,
+        insertions: total_insertions,
+        deletions: total_deletions,
+    })
 }
 
 pub fn get_branch_name() -> Result<String> {
@@ -97,13 +123,13 @@ mod tests {
 
     #[test]
     fn test_get_diff_stats() {
-        // Should return Ok for HEAD commit with valid stats tuple
+        // Should return Ok for HEAD commit with valid stats
         let result = get_diff_stats("HEAD");
         assert!(result.is_ok());
-        let (files, insertions, deletions) = result.unwrap();
+        let stats = result.unwrap();
         // All values should be non-negative (may be 0 for empty commits)
-        assert!(files >= 0);
-        assert!(insertions >= 0);
-        assert!(deletions >= 0);
+        assert!(stats.files_changed >= 0);
+        assert!(stats.insertions >= 0);
+        assert!(stats.deletions >= 0);
     }
 }

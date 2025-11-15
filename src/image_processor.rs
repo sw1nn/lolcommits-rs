@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::error::Result;
+use crate::git::CommitMetadata;
 use crate::segmentation;
 use ab_glyph::{FontRef, PxScale};
 use image::{DynamicImage, Rgba};
@@ -388,14 +389,7 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
 
 pub fn overlay_chyron(
     image: DynamicImage,
-    message: &str,
-    commit_type: &str,
-    scope: &str,
-    repo_name: &str,
-    files_changed: u32,
-    insertions: u32,
-    deletions: u32,
-    sha: &str,
+    metadata: &CommitMetadata,
     config: &Config,
 ) -> Result<DynamicImage> {
     // Resolve fonts using fontconfig (with fallback to default_font_name)
@@ -446,14 +440,14 @@ pub fn overlay_chyron(
         title_y,
         title_scale,
         &message_font,
-        message,
+        &metadata.message,
     );
 
     let info_y = y_start as i32 + 45;
-    let info_text = if scope.is_empty() {
-        format!("{} • {}", commit_type.to_uppercase(), repo_name)
+    let info_text = if metadata.scope.is_empty() {
+        format!("{} • {}", metadata.commit_type.to_uppercase(), metadata.repo_name)
     } else {
-        format!("{} • {} • {}", commit_type.to_uppercase(), scope, repo_name)
+        format!("{} • {} • {}", metadata.commit_type.to_uppercase(), metadata.scope, metadata.repo_name)
     };
     draw_text_mut(
         &mut rgba_image,
@@ -467,27 +461,27 @@ pub fn overlay_chyron(
 
     // Calculate stats width first to determine left-aligned starting position
     // Format is: (N) +X -Y with k/M suffixes for large numbers
-    let has_stats = files_changed > 0 || insertions > 0 || deletions > 0;
+    let has_stats = !metadata.stats.is_empty();
     let stats_start_x = if has_stats {
         let mut total_width = 0;
 
         // Files changed: (N)
-        if files_changed > 0 {
-            let files_str = format!("({})", format_stat_number(files_changed));
+        if metadata.stats.files_changed > 0 {
+            let files_str = format!("({})", format_stat_number(metadata.stats.files_changed));
             total_width += (files_str.len() as f32 * 10.0) as i32; // (N) width
             total_width += 10; // small gap
         }
 
         // Insertions: +X
-        if insertions > 0 {
-            let insert_str = format!("+{}", format_stat_number(insertions));
+        if metadata.stats.insertions > 0 {
+            let insert_str = format!("+{}", format_stat_number(metadata.stats.insertions));
             total_width += (insert_str.len() as f32 * 10.0) as i32; // +X width
             total_width += 10; // small gap
         }
 
         // Deletions: -Y
-        if deletions > 0 {
-            let delete_str = format!("-{}", format_stat_number(deletions));
+        if metadata.stats.deletions > 0 {
+            let delete_str = format!("-{}", format_stat_number(metadata.stats.deletions));
             total_width += (delete_str.len() as f32 * 10.0) as i32; // -Y width
         }
 
@@ -497,8 +491,8 @@ pub fn overlay_chyron(
     };
 
     // Draw SHA on the right side of the title line, left-aligned with stats
-    if !sha.is_empty() {
-        let sha_short = if sha.len() > 7 { &sha[..7] } else { sha };
+    if !metadata.sha.is_empty() {
+        let sha_short = if metadata.sha.len() > 7 { &metadata.sha[..7] } else { &metadata.sha };
         draw_text_mut(
             &mut rgba_image,
             yellow,
@@ -521,8 +515,8 @@ pub fn overlay_chyron(
         let mut x_offset = stats_start_x;
 
         // Draw files changed in parentheses (yellow)
-        if files_changed > 0 {
-            let files_str = format!("({})", format_stat_number(files_changed));
+        if metadata.stats.files_changed > 0 {
+            let files_str = format!("({})", format_stat_number(metadata.stats.files_changed));
             draw_text_mut(
                 &mut rgba_image,
                 yellow,
@@ -538,8 +532,8 @@ pub fn overlay_chyron(
         }
 
         // Draw insertions (green)
-        if insertions > 0 {
-            let insert_str = format!("+{}", format_stat_number(insertions));
+        if metadata.stats.insertions > 0 {
+            let insert_str = format!("+{}", format_stat_number(metadata.stats.insertions));
             draw_text_mut(
                 &mut rgba_image,
                 green,
@@ -555,8 +549,8 @@ pub fn overlay_chyron(
         }
 
         // Draw deletions (red)
-        if deletions > 0 {
-            let delete_str = format!("-{}", format_stat_number(deletions));
+        if metadata.stats.deletions > 0 {
+            let delete_str = format!("-{}", format_stat_number(metadata.stats.deletions));
             draw_text_mut(
                 &mut rgba_image,
                 red,

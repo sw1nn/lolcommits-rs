@@ -49,13 +49,13 @@ fn main() -> Result<()> {
 
     let repo_name = git::get_repo_name()?;
     let branch_name = git::get_branch_name()?;
-    let (files_changed, insertions, deletions) = git::get_diff_stats(&args.sha)?;
+    let stats = git::get_diff_stats(&args.sha)?;
     tracing::info!(
         repo_name = %repo_name,
         branch = %branch_name,
-        files_changed = files_changed,
-        insertions = insertions,
-        deletions = deletions,
+        files_changed = stats.files_changed,
+        insertions = stats.insertions,
+        deletions = stats.deletions,
         "Got git info"
     );
 
@@ -71,16 +71,17 @@ fn main() -> Result<()> {
     let scope = parse_commit_scope(first_line);
 
     let final_image = if config.enable_chyron {
+        let commit_metadata = git::CommitMetadata {
+            message: message_without_prefix.clone(),
+            commit_type: commit_type.clone(),
+            scope: scope.clone(),
+            repo_name: repo_name.clone(),
+            sha: args.sha.clone(),
+            stats,
+        };
         let image_with_chyron = image_processor::overlay_chyron(
             processed_image,
-            &message_without_prefix,
-            &commit_type,
-            &scope,
-            &repo_name,
-            files_changed,
-            insertions,
-            deletions,
-            &args.sha,
+            &commit_metadata,
             &config,
         )?;
         tracing::debug!(commit_type = %commit_type, "Overlaid chyron with stats");
@@ -95,13 +96,25 @@ fn main() -> Result<()> {
     // Prepare metadata
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     // Format diff stats for metadata storage (human-readable format)
-    let diff_stats = if files_changed > 0 {
-        let mut parts = vec![format!("{} file{} changed", files_changed, if files_changed == 1 { "" } else { "s" })];
-        if insertions > 0 {
-            parts.push(format!("{} insertion{}(+)", insertions, if insertions == 1 { "" } else { "s" }));
+    let diff_stats = if !stats.is_empty() {
+        let mut parts = vec![format!(
+            "{} file{} changed",
+            stats.files_changed,
+            if stats.files_changed == 1 { "" } else { "s" }
+        )];
+        if stats.insertions > 0 {
+            parts.push(format!(
+                "{} insertion{}(+)",
+                stats.insertions,
+                if stats.insertions == 1 { "" } else { "s" }
+            ));
         }
-        if deletions > 0 {
-            parts.push(format!("{} deletion{}(-)", deletions, if deletions == 1 { "" } else { "s" }));
+        if stats.deletions > 0 {
+            parts.push(format!(
+                "{} deletion{}(-)",
+                stats.deletions,
+                if stats.deletions == 1 { "" } else { "s" }
+            ));
         }
         parts.join(", ")
     } else {
@@ -117,9 +130,9 @@ fn main() -> Result<()> {
         repo_name: repo_name.clone(),
         branch_name: branch_name.clone(),
         diff_stats,
-        files_changed,
-        insertions,
-        deletions,
+        files_changed: stats.files_changed,
+        insertions: stats.insertions,
+        deletions: stats.deletions,
     };
 
     // Save with embedded metadata
