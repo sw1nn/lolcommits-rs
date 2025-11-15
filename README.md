@@ -43,65 +43,103 @@ chmod +x .git/hooks/post-commit
 
 ## Configuration
 
-Configuration is stored in `~/.config/lolcommits-rs/config.toml`. The tool will use sensible defaults if no config file exists.
+Configuration is stored in `~/.config/lolcommits-rs/config.toml`. The tool will automatically create a default configuration file on first run if none exists.
 
----
+### Configuration Options
 
-# Automatic Cleanup with systemd-tmpfiles
+Below are all available configuration options with their default values:
 
-The included sample configuration file can be used with `systemd-tmpfiles` to automatically clean up old lolcommit images.
+```toml
+# Default font used for all text unless overridden by specific font options
+default_font_name = "monospace"
 
-## Installation
+# Optional: Override fonts for specific text elements
+# message_font_name = "Arial"
+# info_font_name = "DejaVu Sans"
+# sha_font_name = "Courier New"
+# stats_font_name = "Liberation Sans"
 
-Copy the sample configuration file to your user tmpfiles directory:
+# Background image specification
+# Can be either:
+# - An absolute path (starts with /): "/path/to/your/background.png"
+# - A basename (no /): "mybackground" searches for mybackground.png in XDG data dirs
+# Default: "background" (searches for background.png in standard locations)
+background_path = "/home/user/.local/share/lolcommits-rs/background.png"
 
-```bash
-mkdir -p ~/.config/user-tmpfiles.d
-cp assets/user-tmpfiles.d.sample ~/.config/user-tmpfiles.d/lolcommits.conf
+# Camera device index (usually 0 for built-in webcam)
+camera_index = 0
+
+# Number of frames to capture before taking the final snapshot
+# (allows the camera to adjust white balance and exposure)
+camera_warmup_frames = 3
+
+# Opacity of the information overlay (0.0 = transparent, 1.0 = opaque)
+chyron_opacity = 0.75
+
+# Font size for the commit message title
+title_font_size = 28.0
+
+# Font size for commit info (SHA, stats, repo name)
+info_font_size = 18.0
+
+# Whether to center the detected person in the frame
+center_person = true
 ```
 
-## Usage
+### Font Configuration
 
-### Manual Cleanup
+The font system uses a hierarchical fallback approach:
 
-To manually trigger cleanup based on the rules:
+1. **default_font_name** - The base font used for all text elements
+2. **Specific font overrides** - Optional per-element font customization:
+   - `message_font_name` - Commit message text
+   - `info_font_name` - Repository and commit information
+   - `sha_font_name` - Commit SHA hash
+   - `stats_font_name` - Diff statistics
 
-```bash
-systemd-tmpfiles --user --clean
+If a specific font is not set, it falls back to `default_font_name`. This allows you to easily change all fonts at once or customize individual elements.
+
+### Camera Configuration
+
+- **camera_index**: Set to the device index of your webcam (typically 0 for built-in cameras, 1+ for external)
+- **camera_warmup_frames**: Number of frames to capture and discard before taking the final snapshot. This gives the camera time to adjust exposure and white balance, resulting in better image quality.
+
+### Visual Customization
+
+- **background_path**: Specifies the background image for compositing. The face detection system will segment you from the webcam capture and composite you over this background. Can be specified in two ways:
+  - **Absolute path** (starts with `/`): Direct path to the image file, e.g., `/home/user/pictures/bg.png`
+  - **Basename** (no `/`): Searches for `{basename}.png` in XDG data directories, checking these locations in order:
+    - `$XDG_DATA_HOME/{basename}.png` (typically `~/.local/share/{basename}.png`)
+    - `$XDG_DATA_HOME/backgrounds/{basename}.png`
+    - `$XDG_DATA_HOME/pixmaps/{basename}.png`
+    - `$XDG_DATA_HOME/wallpapers/{basename}.png`
+    - Same pattern in `/usr/local/share/` and `/usr/share/`
+  
+  Example: `background_path = "mybackground"` will search for `mybackground.png` in the above locations.
+
+- **chyron_opacity**: Controls transparency of the text overlay (0.0-1.0)
+- **title_font_size**: Size of the commit message text
+- **info_font_size**: Size of the metadata text (SHA, stats, repo)
+- **center_person**: When enabled, the detected face is centered in the frame
+
+### Example Custom Configuration
+
+```toml
+# Use a fancy font for the commit message
+default_font_name = "monospace"
+message_font_name = "Liberation Serif"
+
+# Use a different camera
+camera_index = 1
+
+# Larger fonts for high-DPI displays
+title_font_size = 42.0
+info_font_size = 24.0
+
+# More subtle overlay
+chyron_opacity = 0.5
 ```
 
-### Automatic Cleanup
+## Automatic Cleanup
 
-Enable the systemd-provided timer for automatic periodic cleanup:
-
-```bash
-systemctl --user enable --now systemd-tmpfiles-clean.timer
-```
-
-Check the timer status:
-
-```bash
-systemctl --user status systemd-tmpfiles-clean.timer
-```
-
-## Configuration
-
-The default configuration deletes PNG images older than 30 days from `~/.local/share/lolcommits-rs/`.
-
-To customize, edit `~/.config/user-tmpfiles.d/lolcommits.conf`:
-
-- Change `30d` to a different value (e.g., `60d`, `90d`, `1y`)
-- Uncomment alternative rules as needed
-
-## Testing
-
-To test without actually deleting files:
-
-```bash
-systemd-tmpfiles --user --clean --dry-run
-```
-
-## References
-
-- [systemd-tmpfiles(8)](https://www.freedesktop.org/software/systemd/man/systemd-tmpfiles.html)
-- [tmpfiles.d(5)](https://www.freedesktop.org/software/systemd/man/tmpfiles.d.html)
+For information on setting up automatic cleanup of old lolcommit images using systemd-tmpfiles, see [docs/automatic-cleanup.md](docs/automatic-cleanup.md).
