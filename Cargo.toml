@@ -21,6 +21,7 @@ opencv = { version = "0.97", default-features = false, features = [
   "dnn",
 ] }
 reqwest = { version = "0.12", features = ["blocking"] }
+md5 = "0.7"
 sha2 = "0.10"
 toml = "0.8"
 serde = { version = "1.0", features = ["derive"] }

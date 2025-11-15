@@ -7,6 +7,8 @@ use xdg::BaseDirectories;
 // This model is well-tested with OpenCV DNN and provides good results
 const MODEL_URL: &str = "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx";
 const MODEL_FILENAME: &str = "u2net.onnx";
+// MD5 checksum from rembg project: https://github.com/danielgatis/rembg/blob/main/rembg/sessions/u2net.py
+const MODEL_MD5: &str = "60024c5c889badc19c04ad937298a77b";
 
 pub fn get_model_path() -> Result<PathBuf> {
     let xdg_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
@@ -63,6 +65,19 @@ fn download_model(path: &PathBuf) -> Result<()> {
             message: format!("Downloaded file too small ({} bytes), likely not a valid model", bytes.len()),
         });
     }
+
+    // Verify MD5 checksum
+    let digest = md5::compute(&bytes);
+    let checksum = format!("{:x}", digest);
+    if checksum != MODEL_MD5 {
+        return Err(crate::error::LolcommitsError::ModelValidationError {
+            message: format!(
+                "MD5 checksum mismatch: expected {}, got {}",
+                MODEL_MD5, checksum
+            ),
+        });
+    }
+    tracing::debug!(checksum, "Model checksum verified");
 
     // Create parent directory if it doesn't exist
     if let Some(parent) = path.parent() {
