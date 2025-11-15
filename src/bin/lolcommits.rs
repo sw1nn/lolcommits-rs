@@ -85,6 +85,7 @@ fn main() -> Result<()> {
 
     // Prepare metadata
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let (files_changed, insertions, deletions) = git::parse_diff_stats(&diff_stat);
     let metadata = image_metadata::CommitMetadata {
         commit_sha: args.sha.clone(),
         commit_message: message_without_prefix.clone(),
@@ -94,6 +95,9 @@ fn main() -> Result<()> {
         repo_name: repo_name.clone(),
         branch_name: branch_name.clone(),
         diff_stats: diff_stat.clone(),
+        files_changed,
+        insertions,
+        deletions,
     };
 
     // Save with embedded metadata

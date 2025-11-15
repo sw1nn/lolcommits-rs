@@ -451,20 +451,25 @@ pub fn overlay_chyron(
 
     // Calculate stats width first to determine left-aligned starting position
     let stats_start_x = if !stats.is_empty() {
-        let parts: Vec<&str> = stats.split(',').map(|s| s.trim()).collect();
+        let (_files_changed, insertions, deletions) = crate::git::parse_diff_stats(stats);
         let mut total_width = 0;
 
-        for part in parts.iter() {
-            if (part.contains("deletion") || part.contains("insertion"))
-                && let Some(space_pos) = part.find(' ')
-            {
-                let num = &part[..space_pos];
-                total_width += (num.len() as f32 * 10.0) as i32; // number width
-                total_width += 5; // gap after number
-                total_width += 10; // +/- symbol
-                total_width += 15; // gap before next item
-            }
+        if insertions > 0 {
+            let num_str = insertions.to_string();
+            total_width += (num_str.len() as f32 * 10.0) as i32; // number width
+            total_width += 5; // gap after number
+            total_width += 10; // + symbol
+            total_width += 15; // gap before next item
         }
+
+        if deletions > 0 {
+            let num_str = deletions.to_string();
+            total_width += (num_str.len() as f32 * 10.0) as i32; // number width
+            total_width += 5; // gap after number
+            total_width += 10; // - symbol
+            total_width += 15; // gap before next item
+        }
+
         (width as i32) - 30 - total_width
     } else {
         (width as i32) - 150 // default position if no stats
@@ -491,74 +496,69 @@ pub fn overlay_chyron(
 
         let mut x_offset = stats_start_x;
 
-        // Parse stats: "N file(s) changed, M insertion(s)(+), K deletion(s)(-)"
-        let parts: Vec<&str> = stats.split(',').map(|s| s.trim()).collect();
+        // Parse stats using shared function
+        let (_files_changed, insertions, deletions) = crate::git::parse_diff_stats(stats);
 
-        // Process in forward order for left-to-right drawing
-        for part in parts.iter() {
-            if part.contains("insertion") {
-                // Extract number and draw in green
-                if let Some(space_pos) = part.find(' ') {
-                    let num = &part[..space_pos];
+        // Draw insertions in green
+        if insertions > 0 {
+            let num_str = insertions.to_string();
 
-                    // Draw "+"
-                    draw_text_mut(
-                        &mut rgba_image,
-                        green,
-                        x_offset,
-                        info_y,
-                        info_scale,
-                        &stats_font,
-                        "+",
-                    );
-                    x_offset += 10;
+            // Draw "+"
+            draw_text_mut(
+                &mut rgba_image,
+                green,
+                x_offset,
+                info_y,
+                info_scale,
+                &stats_font,
+                "+",
+            );
+            x_offset += 10;
 
-                    // Draw number
-                    draw_text_mut(
-                        &mut rgba_image,
-                        green,
-                        x_offset,
-                        info_y,
-                        info_scale,
-                        &stats_font,
-                        num,
-                    );
-                    let text_width = (num.len() as f32 * 10.0) as i32;
-                    x_offset += text_width;
-                    x_offset += 20; // gap before next item
-                }
-            } else if part.contains("deletion") {
-                // Extract number and draw in red
-                if let Some(space_pos) = part.find(' ') {
-                    let num = &part[..space_pos];
+            // Draw number
+            draw_text_mut(
+                &mut rgba_image,
+                green,
+                x_offset,
+                info_y,
+                info_scale,
+                &stats_font,
+                &num_str,
+            );
+            let text_width = (num_str.len() as f32 * 10.0) as i32;
+            x_offset += text_width;
+            x_offset += 20; // gap before next item
+        }
 
-                    // Draw "-"
-                    draw_text_mut(
-                        &mut rgba_image,
-                        red,
-                        x_offset,
-                        info_y,
-                        info_scale,
-                        &stats_font,
-                        "-",
-                    );
-                    x_offset += 10;
+        // Draw deletions in red
+        if deletions > 0 {
+            let num_str = deletions.to_string();
 
-                    // Draw number
-                    draw_text_mut(
-                        &mut rgba_image,
-                        red,
-                        x_offset,
-                        info_y,
-                        info_scale,
-                        &stats_font,
-                        num,
-                    );
-                    let text_width = (num.len() as f32 * 10.0) as i32;
-                    x_offset += text_width;
-                    x_offset += 20; // gap before next item
-                }
-            }
+            // Draw "-"
+            draw_text_mut(
+                &mut rgba_image,
+                red,
+                x_offset,
+                info_y,
+                info_scale,
+                &stats_font,
+                "-",
+            );
+            x_offset += 10;
+
+            // Draw number
+            draw_text_mut(
+                &mut rgba_image,
+                red,
+                x_offset,
+                info_y,
+                info_scale,
+                &stats_font,
+                &num_str,
+            );
+            let text_width = (num_str.len() as f32 * 10.0) as i32;
+            x_offset += text_width;
+            x_offset += 20; // gap before next item
         }
     }
 

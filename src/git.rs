@@ -39,6 +39,39 @@ pub fn get_branch_name() -> Result<String> {
     }
 }
 
+/// Parse git diff shortstat output to extract files changed, insertions, and deletions
+/// Example input: "4 files changed, 137 insertions(+), 86 deletions(-)"
+/// Returns: (files_changed, insertions, deletions)
+pub fn parse_diff_stats(stats: &str) -> (u32, u32, u32) {
+    let mut files_changed = 0;
+    let mut insertions = 0;
+    let mut deletions = 0;
+
+    // Split by comma and parse each part
+    for part in stats.split(',') {
+        let part = part.trim();
+
+        if part.contains("file") && part.contains("changed") {
+            // Extract number before "file"
+            if let Some(num_str) = part.split_whitespace().next() {
+                files_changed = num_str.parse().unwrap_or(0);
+            }
+        } else if part.contains("insertion") {
+            // Extract number before "insertion"
+            if let Some(num_str) = part.split_whitespace().next() {
+                insertions = num_str.parse().unwrap_or(0);
+            }
+        } else if part.contains("deletion") {
+            // Extract number before "deletion"
+            if let Some(num_str) = part.split_whitespace().next() {
+                deletions = num_str.parse().unwrap_or(0);
+            }
+        }
+    }
+
+    (files_changed, insertions, deletions)
+}
+
 fn open_repo() -> Result<Repository> {
     let current_dir = env::current_dir()?;
     Repository::discover(current_dir).map_err(|_| NotInGitRepo)

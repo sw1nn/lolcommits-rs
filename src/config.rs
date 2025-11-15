@@ -43,6 +43,9 @@ pub struct Config {
 
     #[serde(default = "default_enable_chyron")]
     pub enable_chyron: bool,
+
+    #[serde(default = "default_gallery_title")]
+    pub gallery_title: String,
 }
 
 fn default_font_name() -> String {
@@ -87,6 +90,10 @@ fn default_enable_chyron() -> bool {
     true
 }
 
+fn default_gallery_title() -> String {
+    "Lolcommits Gallery".to_string()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -103,6 +110,7 @@ impl Default for Config {
             info_font_size: default_info_font_size(),
             center_person: default_center_person(),
             enable_chyron: default_enable_chyron(),
+            gallery_title: default_gallery_title(),
         }
     }
 }

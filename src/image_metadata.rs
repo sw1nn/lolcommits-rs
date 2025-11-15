@@ -14,6 +14,9 @@ pub struct CommitMetadata {
     pub repo_name: String,
     pub branch_name: String,
     pub diff_stats: String,
+    pub files_changed: u32,
+    pub insertions: u32,
+    pub deletions: u32,
 }
 
 pub fn save_png_with_metadata<P: AsRef<Path>>(
@@ -44,6 +47,9 @@ pub fn save_png_with_metadata<P: AsRef<Path>>(
     encoder.add_text_chunk("lolcommit:repo".to_string(), metadata.repo_name)?;
     encoder.add_text_chunk("lolcommit:branch".to_string(), metadata.branch_name)?;
     encoder.add_text_chunk("lolcommit:diff".to_string(), metadata.diff_stats)?;
+    encoder.add_text_chunk("lolcommit:files_changed".to_string(), metadata.files_changed.to_string())?;
+    encoder.add_text_chunk("lolcommit:insertions".to_string(), metadata.insertions.to_string())?;
+    encoder.add_text_chunk("lolcommit:deletions".to_string(), metadata.deletions.to_string())?;
 
     let mut writer = encoder.write_header()?;
     writer.write_image_data(&rgb_image)?;
@@ -69,6 +75,9 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
         repo_name: String::new(),
         branch_name: String::new(),
         diff_stats: String::new(),
+        files_changed: 0,
+        insertions: 0,
+        deletions: 0,
     };
 
     let mut found_any = false;
@@ -105,6 +114,18 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
             }
             "lolcommit:diff" => {
                 metadata.diff_stats = chunk.text.clone();
+                found_any = true;
+            }
+            "lolcommit:files_changed" => {
+                metadata.files_changed = chunk.text.parse().unwrap_or(0);
+                found_any = true;
+            }
+            "lolcommit:insertions" => {
+                metadata.insertions = chunk.text.parse().unwrap_or(0);
+                found_any = true;
+            }
+            "lolcommit:deletions" => {
+                metadata.deletions = chunk.text.parse().unwrap_or(0);
                 found_any = true;
             }
             _ => {}

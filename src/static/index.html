@@ -84,9 +84,10 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.7), transparent);
+            height: 80px;
+            background: rgba(0, 0, 0, 0.75);
             color: #fff;
-            padding: 3rem 2rem 2rem;
+            font-family: monospace;
             opacity: 0;
             transform: translateY(100%);
             transition: all 0.3s ease;
@@ -98,52 +99,58 @@
             transform: translateY(0);
         }
 
-        .web-chyron .commit-info {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-
         .web-chyron .commit-title {
-            font-size: 1.75rem;
-            font-weight: 600;
-            margin-bottom: 0.25rem;
+            position: absolute;
+            left: 15px;
+            top: 8px;
+            font-size: 28px;
+            font-weight: normal;
+            color: #fff;
+            max-width: calc(100% - 200px);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 28px;
+        }
+
+        .web-chyron .commit-sha {
+            position: absolute;
+            right: 15px;
+            top: 10px;
+            font-size: 28px;
+            font-weight: normal;
+            color: #ffff00;
+        }
+
+        .web-chyron .commit-info-line {
+            position: absolute;
+            left: 15px;
+            top: 45px;
+            font-size: 18px;
+            font-weight: normal;
+            color: #b4b4b4;
+            max-width: calc(100% - 250px);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .web-chyron .commit-stats {
+            position: absolute;
+            right: 15px;
+            top: 45px;
+            font-size: 18px;
+            font-weight: normal;
             display: flex;
-            align-items: center;
-            gap: 0.75rem;
+            gap: 20px;
         }
 
-        .web-chyron .commit-type-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 4px;
-            font-size: 0.875rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            background: rgba(255, 255, 255, 0.2);
+        .web-chyron .stat-insertions {
+            color: #00ff00;
         }
 
-        .web-chyron .commit-scope {
-            color: #a0aec0;
-            font-size: 0.875rem;
-        }
-
-        .web-chyron .commit-meta {
-            display: flex;
-            gap: 2rem;
-            flex-wrap: wrap;
-            font-size: 0.95rem;
-            opacity: 0.9;
-        }
-
-        .web-chyron .meta-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .web-chyron .meta-label {
-            color: #a0aec0;
+        .web-chyron .stat-deletions {
+            color: #ff0000;
         }
 
         .nav-button {
@@ -348,35 +355,10 @@
             <div class="image-wrapper">
                 <img id="currentImage" alt="Lolcommit">
                 <div class="web-chyron" id="webChyron">
-                    <div class="commit-info">
-                        <div class="commit-title">
-                            <span class="commit-type-badge" id="chyronType"></span>
-                            <span id="chyronMessage"></span>
-                        </div>
-                        <div class="commit-scope" id="chyronScope"></div>
-                        <div class="commit-meta">
-                            <div class="meta-item">
-                                <span class="meta-label">Repo:</span>
-                                <span id="chyronRepo"></span>
-                            </div>
-                            <div class="meta-item">
-                                <span class="meta-label">Branch:</span>
-                                <span id="chyronBranch"></span>
-                            </div>
-                            <div class="meta-item">
-                                <span class="meta-label">SHA:</span>
-                                <span id="chyronSha"></span>
-                            </div>
-                            <div class="meta-item">
-                                <span class="meta-label">Date:</span>
-                                <span id="chyronDate"></span>
-                            </div>
-                            <div class="meta-item" id="chyronDiffItem">
-                                <span class="meta-label">Diff:</span>
-                                <span id="chyronDiff"></span>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="commit-title" id="chyronMessage"></div>
+                    <div class="commit-sha" id="chyronSha"></div>
+                    <div class="commit-info-line" id="chyronInfoLine"></div>
+                    <div class="commit-stats" id="chyronStats"></div>
                 </div>
             </div>
 
@@ -400,6 +382,22 @@
 
         // Preload images for smooth navigation
         const imageCache = new Map();
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                if (!response.ok) throw new Error('Failed to load config');
+
+                const config = await response.json();
+
+                // Update page title and header
+                document.title = config.gallery_title;
+                document.querySelector('h1').textContent = config.gallery_title;
+            } catch (error) {
+                console.error('Error loading config:', error);
+                // Keep default title if config fails to load
+            }
+        }
 
         async function loadImages() {
             try {
@@ -471,20 +469,39 @@
         }
 
         function updateChyron(image) {
-            document.getElementById('chyronType').textContent = image.commit_type || 'commit';
+            // Title: commit message
             document.getElementById('chyronMessage').textContent = image.commit_message || '';
-            document.getElementById('chyronScope').textContent = image.commit_scope ? `(${image.commit_scope})` : '';
-            document.getElementById('chyronRepo').textContent = image.repo_name;
-            document.getElementById('chyronBranch').textContent = image.branch_name || '-';
-            document.getElementById('chyronSha').textContent = image.commit_sha.substring(0, 7);
-            document.getElementById('chyronDate').textContent = image.date_time || image.timestamp;
 
-            const diffItem = document.getElementById('chyronDiffItem');
-            if (image.diff_stats) {
-                document.getElementById('chyronDiff').textContent = image.diff_stats;
-                diffItem.style.display = 'flex';
+            // SHA: short form (7 chars)
+            document.getElementById('chyronSha').textContent = image.commit_sha.substring(0, 7);
+
+            // Info line: "TYPE • scope • repo" or "TYPE • repo"
+            const commitType = image.commit_type || 'commit';
+            let infoLine = commitType.toUpperCase();
+
+            if (image.commit_scope) {
+                infoLine += ' • ' + image.commit_scope;
+            }
+            infoLine += ' • ' + image.repo_name;
+
+            document.getElementById('chyronInfoLine').textContent = infoLine;
+
+            // Stats: "+N -M" format with colors
+            const statsElement = document.getElementById('chyronStats');
+            if (image.insertions > 0 || image.deletions > 0) {
+                let html = '';
+
+                if (image.insertions > 0) {
+                    html += '<span class="stat-insertions">+' + image.insertions + '</span> ';
+                }
+
+                if (image.deletions > 0) {
+                    html += '<span class="stat-deletions">-' + image.deletions + '</span>';
+                }
+
+                statsElement.innerHTML = html.trim();
             } else {
-                diffItem.style.display = 'none';
+                statsElement.innerHTML = '';
             }
         }
 
@@ -538,7 +555,8 @@
             }
         });
 
-        // Load images on page load
+        // Load config and images on page load
+        loadConfig();
         loadImages();
     </script>
 </body>

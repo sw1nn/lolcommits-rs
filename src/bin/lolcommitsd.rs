@@ -4,7 +4,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use sw1nn_lolcommits_rs::image_metadata;
+use sw1nn_lolcommits_rs::{config, image_metadata};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -22,7 +22,15 @@ struct ImageInfo {
     commit_scope: String,
     branch_name: String,
     diff_stats: String,
+    files_changed: u32,
+    insertions: u32,
+    deletions: u32,
     date_time: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ConfigResponse {
+    gallery_title: String,
 }
 
 #[tokio::main]
@@ -42,6 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/api/images", get(list_images))
+        .route("/api/config", get(get_config))
         .nest_service("/images", ServeDir::new(&data_home))
         .layer(
             TraceLayer::new_for_http()
@@ -68,6 +77,23 @@ async fn list_images() -> Response {
             (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to list images: {}", e),
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn get_config() -> Response {
+    match config::Config::load() {
+        Ok(cfg) => Json(ConfigResponse {
+            gallery_title: cfg.gallery_title,
+        })
+        .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to load config");
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to load config: {}", e),
             )
                 .into_response()
         }
@@ -113,6 +139,9 @@ fn parse_filename(path: &std::path::Path, filename: &str) -> Option<ImageInfo> {
             commit_scope: metadata.commit_scope,
             branch_name: metadata.branch_name,
             diff_stats: metadata.diff_stats,
+            files_changed: metadata.files_changed,
+            insertions: metadata.insertions,
+            deletions: metadata.deletions,
             date_time: Some(metadata.timestamp),
         });
     }
@@ -146,6 +175,9 @@ fn parse_filename(path: &std::path::Path, filename: &str) -> Option<ImageInfo> {
         commit_scope: String::new(),
         branch_name: String::new(),
         diff_stats: String::new(),
+        files_changed: 0,
+        insertions: 0,
+        deletions: 0,
         date_time,
     })
 }
