@@ -1,6 +1,6 @@
-use crate::error::{Error, Result};
+use crate::error::{Error::*, Result};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // Using U2Net model for background segmentation
 // This model is well-tested with OpenCV DNN and provides good results
@@ -9,12 +9,12 @@ const MODEL_FILENAME: &str = "u2net.onnx";
 // MD5 checksum from rembg project: https://github.com/danielgatis/rembg/blob/main/rembg/sessions/u2net.py
 const MODEL_MD5: &str = "60024c5c889badc19c04ad937298a77b";
 
-pub fn get_model_path(models_dir: &str) -> Result<PathBuf> {
-    let models_path = PathBuf::from(models_dir);
+pub fn get_model_path(models_dir: impl AsRef<Path>) -> Result<PathBuf> {
+    let models_path = models_dir.as_ref();
 
     // Ensure directory exists
-    fs::create_dir_all(&models_path).map_err(|source| Error::ModelDirectoryCreate {
-        path: models_path.clone(),
+    fs::create_dir_all(models_path).map_err(|source| ModelDirectoryCreate {
+        path: models_path.to_path_buf(),
         source,
     })?;
 
@@ -29,14 +29,14 @@ pub fn get_model_path(models_dir: &str) -> Result<PathBuf> {
     Ok(model_path)
 }
 
-fn download_model(path: &PathBuf) -> Result {
+fn download_model(path: impl AsRef<Path>) -> Result {
     tracing::debug!(url = MODEL_URL, "Requesting model download");
 
     let response = reqwest::blocking::get(MODEL_URL)?;
 
     let status = response.status();
     if !status.is_success() {
-        return Err(Error::HttpError {
+        return Err(HttpError {
             status: status.as_u16(),
         });
     }
@@ -50,26 +50,27 @@ fn download_model(path: &PathBuf) -> Result {
 
     // Validate minimum size (ONNX models should be at least a few KB)
     if bytes.len() < 1024 {
-        return Err(Error::ModelFileTooSmall { size: bytes.len() });
+        return Err(ModelFileTooSmall { size: bytes.len() });
     }
 
     // Verify MD5 checksum
     let digest = md5::compute(&bytes);
     let checksum = format!("{:x}", digest);
     if checksum != MODEL_MD5 {
-        return Err(Error::ModelChecksumMismatch {
+        return Err(ModelChecksumMismatch {
             expected: MODEL_MD5.to_string(),
             actual: checksum,
         });
     }
     tracing::debug!(checksum, "Model checksum verified");
 
-    fs::write(path, &bytes).map_err(|source| Error::ModelFileWrite {
-        path: path.to_path_buf(),
+    let path_ref = path.as_ref();
+    fs::write(path_ref, &bytes).map_err(|source| ModelFileWrite {
+        path: path_ref.to_path_buf(),
         source,
     })?;
 
-    tracing::debug!(path = ?path, size = bytes.len(), "Model saved successfully");
+    tracing::debug!(path = ?path_ref, size = bytes.len(), "Model saved successfully");
 
     Ok(())
 }
@@ -77,6 +78,7 @@ fn download_model(path: &PathBuf) -> Result {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::Error;
     use std::env;
 
     #[test]
