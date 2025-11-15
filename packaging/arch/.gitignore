@@ -1,0 +1,5 @@
+src/
+pkg/
+lolcommits/
+*.tar.zst
+*.tar.zst.sig
