@@ -6,11 +6,11 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc='Webcam snapshot tool for git commits'
 arch=('x86_64')
-url=https://github.com/sw1nn/sw1nn-lolcommits-rs
+url=https://git.sw1nn.net/r/lolcommits-rs.git/
 license=('MIT')
 depends=('opencv' 'fontconfig')
 makedepends=('rust' 'clang' 'pkg-config')
-source=("${pkgbase}::git+https://github.com/sw1nn/sw1nn-lolcommits-rs?tag=v${pkgver}")
+source=("${pkgbase}::git+ssh://git.sw1nn.net/sw1nn/lolcommits-rs.git#tag=v${pkgver}")
 sha256sums=('SKIP')
 
 prepare() {
