@@ -11,6 +11,20 @@ use opencv::prelude::*;
 use std::env;
 use std::path::PathBuf;
 
+/// Format a number with k/M suffix for numbers over 999
+/// Examples: 42 -> "42", 1234 -> "1.2k", 1567890 -> "1.6M"
+fn format_stat_number(n: u32) -> String {
+    if n <= 999 {
+        n.to_string()
+    } else if n < 1_000_000 {
+        let k = n as f32 / 1000.0;
+        format!("{:.1}k", k)
+    } else {
+        let m = n as f32 / 1_000_000.0;
+        format!("{:.1}M", m)
+    }
+}
+
 /// Load a font by name using fontconfig and return a FontRef
 ///
 /// The font data is leaked to satisfy FontRef's lifetime requirements.
@@ -450,24 +464,29 @@ pub fn overlay_chyron(
     );
 
     // Calculate stats width first to determine left-aligned starting position
+    // Format is: (N) +X -Y with k/M suffixes for large numbers
     let stats_start_x = if !stats.is_empty() {
-        let (_files_changed, insertions, deletions) = crate::git::parse_diff_stats(stats);
+        let (files_changed, insertions, deletions) = crate::git::parse_diff_stats(stats);
         let mut total_width = 0;
 
-        if insertions > 0 {
-            let num_str = insertions.to_string();
-            total_width += (num_str.len() as f32 * 10.0) as i32; // number width
-            total_width += 5; // gap after number
-            total_width += 10; // + symbol
-            total_width += 15; // gap before next item
+        // Files changed: (N)
+        if files_changed > 0 {
+            let files_str = format!("({})", format_stat_number(files_changed));
+            total_width += (files_str.len() as f32 * 10.0) as i32; // (N) width
+            total_width += 10; // small gap
         }
 
+        // Insertions: +X
+        if insertions > 0 {
+            let insert_str = format!("+{}", format_stat_number(insertions));
+            total_width += (insert_str.len() as f32 * 10.0) as i32; // +X width
+            total_width += 10; // small gap
+        }
+
+        // Deletions: -Y
         if deletions > 0 {
-            let num_str = deletions.to_string();
-            total_width += (num_str.len() as f32 * 10.0) as i32; // number width
-            total_width += 5; // gap after number
-            total_width += 10; // - symbol
-            total_width += 15; // gap before next item
+            let delete_str = format!("-{}", format_stat_number(deletions));
+            total_width += (delete_str.len() as f32 * 10.0) as i32; // -Y width
         }
 
         (width as i32) - 30 - total_width
@@ -490,75 +509,64 @@ pub fn overlay_chyron(
     }
 
     // Draw colorized stats on the right side, left-aligned with SHA
+    // Format: (N) +X -Y where N=files changed (yellow), X=insertions (green), Y=deletions (red)
+    // Numbers over 999 are formatted with k/M suffixes (e.g., 1.2k, 1.5M)
     if !stats.is_empty() {
+        let yellow = Rgba([255u8, 255u8, 0u8, 255u8]);
         let green = Rgba([0u8, 255u8, 0u8, 255u8]);
         let red = Rgba([255u8, 0u8, 0u8, 255u8]);
 
         let mut x_offset = stats_start_x;
 
         // Parse stats using shared function
-        let (_files_changed, insertions, deletions) = crate::git::parse_diff_stats(stats);
+        let (files_changed, insertions, deletions) = crate::git::parse_diff_stats(stats);
 
-        // Draw insertions in green
-        if insertions > 0 {
-            let num_str = insertions.to_string();
-
-            // Draw "+"
+        // Draw files changed in parentheses (yellow)
+        if files_changed > 0 {
+            let files_str = format!("({})", format_stat_number(files_changed));
             draw_text_mut(
                 &mut rgba_image,
-                green,
+                yellow,
                 x_offset,
                 info_y,
                 info_scale,
                 &stats_font,
-                "+",
+                &files_str,
             );
-            x_offset += 10;
-
-            // Draw number
-            draw_text_mut(
-                &mut rgba_image,
-                green,
-                x_offset,
-                info_y,
-                info_scale,
-                &stats_font,
-                &num_str,
-            );
-            let text_width = (num_str.len() as f32 * 10.0) as i32;
+            let text_width = (files_str.len() as f32 * 10.0) as i32;
             x_offset += text_width;
-            x_offset += 20; // gap before next item
+            x_offset += 10; // small gap
         }
 
-        // Draw deletions in red
-        if deletions > 0 {
-            let num_str = deletions.to_string();
-
-            // Draw "-"
+        // Draw insertions (green)
+        if insertions > 0 {
+            let insert_str = format!("+{}", format_stat_number(insertions));
             draw_text_mut(
                 &mut rgba_image,
-                red,
+                green,
                 x_offset,
                 info_y,
                 info_scale,
                 &stats_font,
-                "-",
+                &insert_str,
             );
-            x_offset += 10;
-
-            // Draw number
-            draw_text_mut(
-                &mut rgba_image,
-                red,
-                x_offset,
-                info_y,
-                info_scale,
-                &stats_font,
-                &num_str,
-            );
-            let text_width = (num_str.len() as f32 * 10.0) as i32;
+            let text_width = (insert_str.len() as f32 * 10.0) as i32;
             x_offset += text_width;
-            x_offset += 20; // gap before next item
+            x_offset += 10; // small gap
+        }
+
+        // Draw deletions (red)
+        if deletions > 0 {
+            let delete_str = format!("-{}", format_stat_number(deletions));
+            draw_text_mut(
+                &mut rgba_image,
+                red,
+                x_offset,
+                info_y,
+                info_scale,
+                &stats_font,
+                &delete_str,
+            );
         }
     }
 

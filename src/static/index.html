@@ -141,8 +141,10 @@
             top: 45px;
             font-size: 18px;
             font-weight: normal;
-            display: flex;
-            gap: 20px;
+        }
+
+        .web-chyron .stat-files {
+            color: #ffff00;
         }
 
         .web-chyron .stat-insertions {
@@ -468,6 +470,17 @@
             document.getElementById('nextBtn').disabled = index === images.length - 1;
         }
 
+        // Format number with k/M suffix for numbers over 999
+        function formatStatNumber(n) {
+            if (n <= 999) {
+                return n.toString();
+            } else if (n < 1000000) {
+                return (n / 1000).toFixed(1) + 'k';
+            } else {
+                return (n / 1000000).toFixed(1) + 'M';
+            }
+        }
+
         function updateChyron(image) {
             // Title: commit message
             document.getElementById('chyronMessage').textContent = image.commit_message || '';
@@ -486,20 +499,25 @@
 
             document.getElementById('chyronInfoLine').textContent = infoLine;
 
-            // Stats: "+N -M" format with colors
+            // Stats: "(N) +X -Y" format with colors and k/M suffixes for large numbers
+            // N=files changed (yellow), X=insertions (green), Y=deletions (red)
             const statsElement = document.getElementById('chyronStats');
-            if (image.insertions > 0 || image.deletions > 0) {
-                let html = '';
+            if (image.files_changed > 0 || image.insertions > 0 || image.deletions > 0) {
+                let parts = [];
+
+                if (image.files_changed > 0) {
+                    parts.push('<span class="stat-files">(' + formatStatNumber(image.files_changed) + ')</span>');
+                }
 
                 if (image.insertions > 0) {
-                    html += '<span class="stat-insertions">+' + image.insertions + '</span> ';
+                    parts.push('<span class="stat-insertions">+' + formatStatNumber(image.insertions) + '</span>');
                 }
 
                 if (image.deletions > 0) {
-                    html += '<span class="stat-deletions">-' + image.deletions + '</span>';
+                    parts.push('<span class="stat-deletions">-' + formatStatNumber(image.deletions) + '</span>');
                 }
 
-                statsElement.innerHTML = html.trim();
+                statsElement.innerHTML = parts.join(' ');
             } else {
                 statsElement.innerHTML = '';
             }
