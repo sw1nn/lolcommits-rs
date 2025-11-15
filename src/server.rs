@@ -1,12 +1,15 @@
 use axum::{
-    extract::{DefaultBodyLimit, Multipart},
+    extract::{DefaultBodyLimit, Multipart, State},
     http::StatusCode,
     Json, Router,
-    response::{Html, IntoResponse, Response},
+    response::{Html, IntoResponse, Response, sse::{Event, Sse}},
     routing::{get, post},
 };
+use futures::stream::Stream;
 use serde::{Deserialize, Serialize, Serializer};
+use std::convert::Infallible;
 use std::path::PathBuf;
+use tokio::sync::broadcast;
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -78,18 +81,29 @@ impl Serialize for ImageMetadata {
     }
 }
 
+#[derive(Clone)]
+struct AppState {
+    tx: broadcast::Sender<String>,
+}
+
 pub fn create_router(data_home: std::path::PathBuf) -> Router {
+    // Create broadcast channel for SSE events (capacity of 100 events)
+    let (tx, _rx) = broadcast::channel(100);
+
+    let state = AppState { tx };
     Router::new()
         .route("/", get(index_handler))
         .route("/api/images", get(list_images))
         .route("/api/config", get(get_config))
         .route("/api/upload", post(upload_handler))
+        .route("/api/events", get(sse_handler))
         .nest_service("/images", ServeDir::new(&data_home))
         .layer(DefaultBodyLimit::max(4 * 1024 * 1024)) // 4 MiB
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         )
+        .with_state(state)
 }
 
 async fn index_handler() -> Html<&'static str> {
@@ -140,6 +154,36 @@ async fn get_config() -> Response {
     }
 }
 
+async fn sse_handler(
+    State(state): State<AppState>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = state.tx.subscribe();
+
+    let stream = async_stream::stream! {
+        let mut rx = rx;
+        loop {
+            match rx.recv().await {
+                Ok(msg) => {
+                    yield Ok(Event::default().data(msg));
+                }
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    tracing::warn!(skipped = n, "SSE client lagged, skipped messages");
+                    continue;
+                }
+                Err(broadcast::error::RecvError::Closed) => {
+                    break;
+                }
+            }
+        }
+    };
+
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(std::time::Duration::from_secs(15))
+            .text("keepalive"),
+    )
+}
+
 fn get_image_list(config: &config::Config) -> Result<Vec<git::CommitMetadata>, Box<dyn std::error::Error>> {
     let images_dir = PathBuf::from(&config.server.images_dir);
 
@@ -161,7 +205,7 @@ fn get_image_list(config: &config::Config) -> Result<Vec<git::CommitMetadata>, B
     Ok(images)
 }
 
-async fn upload_handler(mut multipart: Multipart) -> Response {
+async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart) -> Response {
     let mut image_bytes: Option<Vec<u8>> = None;
     let mut metadata: Option<UploadMetadata> = None;
 
@@ -224,8 +268,9 @@ async fn upload_handler(mut multipart: Multipart) -> Response {
     );
 
     // Spawn async processing task
+    let tx = state.tx.clone();
     tokio::spawn(async move {
-        if let Err(e) = process_image_async(image_bytes, metadata).await {
+        if let Err(e) = process_image_async(image_bytes, metadata, tx).await {
             tracing::error!(error = %e, "Failed to process image");
         }
     });
@@ -244,6 +289,7 @@ async fn upload_handler(mut multipart: Multipart) -> Response {
 async fn process_image_async(
     image_bytes: Vec<u8>,
     metadata: UploadMetadata,
+    tx: broadcast::Sender<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing::info!(sha = %metadata.sha, "Starting async image processing");
 
@@ -305,6 +351,10 @@ async fn process_image_async(
         .persist(&output_path)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
     tracing::info!(path = %output_path.display(), "Saved lolcommit with metadata");
+
+    // Broadcast new image event to SSE clients
+    let _ = tx.send("new_image".to_string());
+    tracing::debug!("Broadcasted new_image event to SSE clients");
 
     Ok(())
 }

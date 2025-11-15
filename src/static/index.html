@@ -483,17 +483,17 @@
 
         function updateChyron(image) {
             // Title: commit message
-            document.getElementById('chyronMessage').textContent = image.commit_message || '';
+            document.getElementById('chyronMessage').textContent = image.message || '';
 
             // SHA: short form (7 chars)
-            document.getElementById('chyronSha').textContent = image.commit_sha.substring(0, 7);
+            document.getElementById('chyronSha').textContent = image.sha.substring(0, 7);
 
             // Info line: "TYPE • scope • repo" or "TYPE • repo"
             const commitType = image.commit_type || 'commit';
             let infoLine = commitType.toUpperCase();
 
-            if (image.commit_scope) {
-                infoLine += ' • ' + image.commit_scope;
+            if (image.scope) {
+                infoLine += ' • ' + image.scope;
             }
             infoLine += ' • ' + image.repo_name;
 
@@ -502,19 +502,20 @@
             // Stats: "(N) +X -Y" format with colors and k/M suffixes for large numbers
             // N=files changed (yellow), X=insertions (green), Y=deletions (red)
             const statsElement = document.getElementById('chyronStats');
-            if (image.files_changed > 0 || image.insertions > 0 || image.deletions > 0) {
+            const stats = image.stats || {};
+            if (stats.files_changed > 0 || stats.insertions > 0 || stats.deletions > 0) {
                 let parts = [];
 
-                if (image.files_changed > 0) {
-                    parts.push('<span class="stat-files">(' + formatStatNumber(image.files_changed) + ')</span>');
+                if (stats.files_changed > 0) {
+                    parts.push('<span class="stat-files">(' + formatStatNumber(stats.files_changed) + ')</span>');
                 }
 
-                if (image.insertions > 0) {
-                    parts.push('<span class="stat-insertions">+' + formatStatNumber(image.insertions) + '</span>');
+                if (stats.insertions > 0) {
+                    parts.push('<span class="stat-insertions">+' + formatStatNumber(stats.insertions) + '</span>');
                 }
 
-                if (image.deletions > 0) {
-                    parts.push('<span class="stat-deletions">-' + formatStatNumber(image.deletions) + '</span>');
+                if (stats.deletions > 0) {
+                    parts.push('<span class="stat-deletions">-' + formatStatNumber(stats.deletions) + '</span>');
                 }
 
                 statsElement.innerHTML = parts.join(' ');
@@ -535,11 +536,13 @@
 
         function showCarousel() {
             document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error').classList.remove('visible');
             document.getElementById('carousel').style.display = 'flex';
         }
 
         function showError() {
             document.getElementById('loading').classList.add('hidden');
+            document.getElementById('carousel').style.display = 'none';
             document.getElementById('error').classList.add('visible');
         }
 
@@ -573,9 +576,31 @@
             }
         });
 
+        // Set up Server-Sent Events for auto-refresh
+        function setupSSE() {
+            const eventSource = new EventSource('/api/events');
+
+            eventSource.onmessage = (event) => {
+                if (event.data === 'new_image') {
+                    console.log('New image uploaded, refreshing list');
+                    loadImages();
+                }
+            };
+
+            eventSource.onerror = (error) => {
+                console.error('SSE connection error:', error);
+                // EventSource will automatically reconnect
+            };
+
+            eventSource.onopen = () => {
+                console.log('SSE connection established');
+            };
+        }
+
         // Load config and images on page load
         loadConfig();
         loadImages();
+        setupSSE();
     </script>
 </body>
 </html>
