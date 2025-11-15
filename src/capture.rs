@@ -70,9 +70,21 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
 
     let output_path = get_output_path(&repo_name, &args.sha)?;
 
-    // Save with embedded metadata
-    image_metadata::save_png_with_metadata(&final_image, &output_path, &metadata)?;
+    // Write to temporary file first, then atomically move to final destination
+    let temp_file = tempfile::NamedTempFile::new_in(
+        output_path
+            .parent()
+            .ok_or_else(|| std::io::Error::other("Invalid output path"))?,
+    )?;
+    let temp_path = temp_file.path();
 
+    tracing::debug!(temp_path = %temp_path.display(), "Writing to temporary file");
+    image_metadata::save_png_with_metadata(&final_image, temp_path, &metadata)?;
+
+    // Atomically move temp file to final destination
+    temp_file
+        .persist(&output_path)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
     tracing::info!(path = %output_path.display(), "Saved lolcommit with metadata");
 
     Ok(output_path)
