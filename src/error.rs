@@ -33,4 +33,10 @@ pub enum LolcommitsError {
 
     #[display("Configuration error: {message}")]
     ConfigError { message: String },
+
+    #[display("Failed to download model: {message}")]
+    ModelDownloadError { message: String },
+
+    #[display("Model validation failed: {message}")]
+    ModelValidationError { message: String },
 }
