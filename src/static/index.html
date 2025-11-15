@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lolcommits Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+        }
+
+        header {
+            padding: 2rem;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .carousel-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .carousel {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-wrapper {
+            position: relative;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .image-wrapper img {
+            width: 100%;
+            height: auto;
+            display: block;
+            transition: opacity 0.3s ease;
+        }
+
+        .image-wrapper.loading img {
+            opacity: 0.5;
+        }
+
+        .nav-button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #667eea;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .nav-button:hover {
+            background: #fff;
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .nav-button:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        .nav-button.prev {
+            left: 2rem;
+        }
+
+        .nav-button.next {
+            right: 2rem;
+        }
+
+        .nav-button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .nav-button:disabled:hover {
+            transform: translateY(-50%) scale(1);
+        }
+
+        .counter {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 1.5rem;
+            font-size: 1.2rem;
+            font-weight: 300;
+        }
+
+        .error-screen {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .error-screen.visible {
+            display: block;
+        }
+
+        .error-screen h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-screen p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .keyboard-hint {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            opacity: 0.8;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .key {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            min-width: 2rem;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .nav-button {
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
+            }
+
+            .nav-button.prev {
+                left: 1rem;
+            }
+
+            .nav-button.next {
+                right: 1rem;
+            }
+
+            .counter {
+                top: 1rem;
+                right: 1rem;
+                padding: 0.5rem 1rem;
+                font-size: 0.85rem;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .keyboard-hint {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-screen" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading lolcommits...</div>
+    </div>
+
+    <header>
+        <h1>🎭 Lolcommits Gallery</h1>
+        <p class="subtitle">Your commit history, captured</p>
+    </header>
+
+    <div class="carousel-container">
+        <div class="error-screen" id="error">
+            <h2>😕 No Images Found</h2>
+            <p>Make some commits to see your lolcommits here!</p>
+        </div>
+
+        <div class="carousel" id="carousel" style="display: none;">
+            <button class="nav-button prev" id="prevBtn" aria-label="Previous image">
+                ←
+            </button>
+
+            <div class="image-wrapper">
+                <img id="currentImage" alt="Lolcommit">
+            </div>
+
+            <button class="nav-button next" id="nextBtn" aria-label="Next image">
+                →
+            </button>
+
+            <div class="counter" id="counter"></div>
+        </div>
+    </div>
+
+    <div class="keyboard-hint">
+        <span>Use <span class="key">←</span> <span class="key">→</span> to navigate</span>
+    </div>
+
+    <script>
+        let images = [];
+        let currentIndex = 0;
+
+        // Preload images for smooth navigation
+        const imageCache = new Map();
+
+        async function loadImages() {
+            try {
+                const response = await fetch('/api/images');
+                if (!response.ok) throw new Error('Failed to load images');
+
+                images = await response.json();
+
+                if (images.length === 0) {
+                    showError();
+                    return;
+                }
+
+                // Preload first few images
+                preloadImages(0, Math.min(3, images.length));
+
+                showCarousel();
+                displayImage(0);
+            } catch (error) {
+                console.error('Error loading images:', error);
+                showError();
+            }
+        }
+
+        function preloadImages(start, count) {
+            for (let i = start; i < start + count && i < images.length; i++) {
+                if (!imageCache.has(i)) {
+                    const img = new Image();
+                    img.src = `/images/${images[i].filename}`;
+                    imageCache.set(i, img);
+                }
+            }
+        }
+
+        function displayImage(index) {
+            if (index < 0 || index >= images.length) return;
+
+            currentIndex = index;
+            const image = images[index];
+
+            const imgElement = document.getElementById('currentImage');
+            const wrapper = imgElement.parentElement;
+
+            // Show loading state
+            wrapper.classList.add('loading');
+
+            // Use cached image if available
+            const cachedImg = imageCache.get(index);
+            if (cachedImg && cachedImg.complete) {
+                imgElement.src = cachedImg.src;
+                wrapper.classList.remove('loading');
+            } else {
+                imgElement.src = `/images/${image.filename}`;
+                imgElement.onload = () => {
+                    wrapper.classList.remove('loading');
+                    // Preload adjacent images
+                    preloadImages(index - 1, 3);
+                };
+            }
+
+            document.getElementById('counter').textContent = `${index + 1} / ${images.length}`;
+
+            // Update button states
+            document.getElementById('prevBtn').disabled = index === 0;
+            document.getElementById('nextBtn').disabled = index === images.length - 1;
+        }
+
+        function showCarousel() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('carousel').style.display = 'flex';
+        }
+
+        function showError() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error').classList.add('visible');
+        }
+
+        function nextImage() {
+            if (currentIndex < images.length - 1) {
+                displayImage(currentIndex + 1);
+            }
+        }
+
+        function prevImage() {
+            if (currentIndex > 0) {
+                displayImage(currentIndex - 1);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('nextBtn').addEventListener('click', nextImage);
+        document.getElementById('prevBtn').addEventListener('click', prevImage);
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                nextImage();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                prevImage();
+            }
+        });
+
+        // Load images on page load
+        loadImages();
+    </script>
+</body>
+</html>

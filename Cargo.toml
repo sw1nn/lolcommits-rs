@@ -27,3 +27,7 @@ toml = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 xdg = "2.5"
 fontconfig = "0.8"
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["fs", "trace"] }
+serde_json = "1.0"
