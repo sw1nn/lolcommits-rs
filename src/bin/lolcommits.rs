@@ -36,7 +36,7 @@ fn main() -> Result<()> {
     let diff_stat = git::get_diff_shortstat()?;
     tracing::info!(repo_name = %repo_name, diff_stat = %diff_stat, "Got git info");
 
-    let image = camera::capture_image()?;
+    let image = camera::capture_image(&config.camera_device)?;
     tracing::info!("Captured image from webcam");
 
     let processed_image = image_processor::replace_background(image, &config)?;

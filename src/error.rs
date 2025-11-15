@@ -1,4 +1,5 @@
 use derive_more::From;
+use std::path::PathBuf;
 
 pub type Result<T = ()> = std::result::Result<T, Error>;
 
@@ -26,6 +27,7 @@ pub enum Error {
     ConfigError { message: String },
     ModelDownloadError { message: String },
     ModelValidationError { message: String },
+    CameraError { message: String, path: PathBuf },
 }
 
 impl std::fmt::Display for Error {

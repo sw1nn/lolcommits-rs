@@ -23,8 +23,8 @@ pub struct Config {
     #[serde(default = "default_background_path")]
     pub background_path: String,
 
-    #[serde(default = "default_camera_index")]
-    pub camera_index: usize,
+    #[serde(default = "default_camera_device")]
+    pub camera_device: String,
 
     #[serde(default = "default_camera_warmup_frames")]
     pub camera_warmup_frames: usize,
@@ -56,8 +56,8 @@ fn default_background_path() -> String {
         .to_string()
 }
 
-fn default_camera_index() -> usize {
-    0
+fn default_camera_device() -> String {
+    "0".to_string()
 }
 
 fn default_camera_warmup_frames() -> usize {
@@ -89,7 +89,7 @@ impl Default for Config {
             sha_font_name: None,
             stats_font_name: None,
             background_path: default_background_path(),
-            camera_index: default_camera_index(),
+            camera_device: default_camera_device(),
             camera_warmup_frames: default_camera_warmup_frames(),
             chyron_opacity: default_chyron_opacity(),
             title_font_size: default_title_font_size(),
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(config.camera_index, 0);
+        assert_eq!(config.camera_device, "0");
         assert_eq!(config.camera_warmup_frames, 3);
         assert_eq!(config.chyron_opacity, 0.75);
         assert!(config.center_person);
@@ -222,7 +222,7 @@ mod tests {
         let config = Config::default();
         let toml_str = toml::to_string(&config).unwrap();
         let parsed: Config = toml::from_str(&toml_str).unwrap();
-        assert_eq!(config.camera_index, parsed.camera_index);
+        assert_eq!(config.camera_device, parsed.camera_device);
     }
 
     #[test]
@@ -300,7 +300,7 @@ mod tests {
         // When loading a config that doesn't specify optional fonts
         let toml_str = r#"
             default_font_name = "Liberation Sans"
-            camera_index = 0
+            camera_device = "0"
         "#;
 
         let config: Config = toml::from_str(toml_str).unwrap();

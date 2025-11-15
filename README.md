@@ -66,8 +66,9 @@ default_font_name = "monospace"
 # Default: "background" (searches for background.png in standard locations)
 background_path = "/home/user/.local/share/lolcommits/background.png"
 
-# Camera device index (usually 0 for built-in webcam)
-camera_index = 0
+# Camera device (usually "0" for built-in webcam)
+# Can be a numeric index or device path
+camera_device = "0"
 
 # Number of frames to capture before taking the final snapshot
 # (allows the camera to adjust white balance and exposure)
@@ -101,7 +102,10 @@ If a specific font is not set, it falls back to `default_font_name`. This allows
 
 ### Camera Configuration
 
-- **camera_index**: Set to the device index of your webcam (typically 0 for built-in cameras, 1+ for external)
+- **camera_device**: Set to the device identifier for your webcam. Can be:
+  - A numeric index as a string (e.g., "0" for built-in cameras, "1" for external)
+  - A device path (e.g., "/dev/video0" on Linux)
+  - A device name or URL for network cameras
 - **camera_warmup_frames**: Number of frames to capture and discard before taking the final snapshot. This gives the camera time to adjust exposure and white balance, resulting in better image quality.
 
 ### Visual Customization
@@ -129,8 +133,8 @@ If a specific font is not set, it falls back to `default_font_name`. This allows
 default_font_name = "monospace"
 message_font_name = "Liberation Serif"
 
-# Use a different camera
-camera_index = 1
+# Use a different camera (can be index or device path)
+camera_device = "1"
 
 # Larger fonts for high-DPI displays
 title_font_size = 42.0

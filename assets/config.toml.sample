@@ -34,9 +34,10 @@ stats_font_name = "monospace"
 #   background_path = "GoogleMeetBackground"                           (searches for GoogleMeetBackground.png)
 background_path = "GoogleMeetBackground"
 
-# Camera index (0 is usually the default webcam)
-# If you have multiple cameras, try 1, 2, etc.
-camera_index = 0
+# Camera device (0 is usually the default webcam)
+# Can be a numeric index (e.g., "0", "1", "2") or a device path (e.g., "/dev/video0")
+# For network cameras, use the camera URL/name as a string
+camera_device = "0"
 
 # Number of warmup frames to capture before taking the final photo
 # This helps the camera adjust exposure and white balance
