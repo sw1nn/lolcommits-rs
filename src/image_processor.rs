@@ -184,7 +184,7 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
     tracing::debug!("After RGB->BGR conversion, mat type: {}", bgr_mat.typ());
 
     // Get segmentation model
-    let model_path = segmentation::get_model_path()?;
+    let model_path = segmentation::get_model_path(&config.server.models_dir)?;
     tracing::debug!(path = %model_path.display(), "Loading segmentation model");
 
     let mut net = read_net_from_onnx(model_path.to_str().unwrap())?;

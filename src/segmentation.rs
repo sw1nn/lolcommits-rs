@@ -1,7 +1,6 @@
 use crate::error::{Error, Result};
 use std::fs;
 use std::path::PathBuf;
-use xdg::BaseDirectories;
 
 // Using U2Net model for background segmentation
 // This model is well-tested with OpenCV DNN and provides good results
@@ -10,10 +9,16 @@ const MODEL_FILENAME: &str = "u2net.onnx";
 // MD5 checksum from rembg project: https://github.com/danielgatis/rembg/blob/main/rembg/sessions/u2net.py
 const MODEL_MD5: &str = "60024c5c889badc19c04ad937298a77b";
 
-pub fn get_model_path() -> Result<PathBuf> {
-    let xdg_dirs = BaseDirectories::with_prefix("lolcommits")?;
+pub fn get_model_path(models_dir: &str) -> Result<PathBuf> {
+    let models_path = PathBuf::from(models_dir);
 
-    let model_path = xdg_dirs.place_cache_file(MODEL_FILENAME)?;
+    // Ensure directory exists
+    fs::create_dir_all(&models_path).map_err(|source| Error::ModelDirectoryCreate {
+        path: models_path.clone(),
+        source,
+    })?;
+
+    let model_path = models_path.join(MODEL_FILENAME);
 
     if !model_path.exists() {
         tracing::info!("Downloading segmentation model (this happens once)...");
@@ -59,14 +64,6 @@ fn download_model(path: &PathBuf) -> Result {
     }
     tracing::debug!(checksum, "Model checksum verified");
 
-    // Create parent directory if it doesn't exist
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|source| Error::ModelDirectoryCreate {
-            path: parent.to_path_buf(),
-            source,
-        })?;
-    }
-
     fs::write(path, &bytes).map_err(|source| Error::ModelFileWrite {
         path: path.to_path_buf(),
         source,
@@ -85,9 +82,12 @@ mod tests {
     #[test]
     fn test_get_model_path_creates_directory() {
         // Test that get_model_path successfully creates a path
-        // Note: This will actually create the XDG cache directory if it doesn't exist
+        // Note: This will actually create the models directory if it doesn't exist
         // and may download the model if it's not cached
-        let result = get_model_path();
+        let temp_dir = env::temp_dir().join("lolcommits-test-models");
+        let models_dir = temp_dir.to_string_lossy().to_string();
+
+        let result = get_model_path(&models_dir);
 
         // If the test fails due to network issues, that's acceptable in CI/offline scenarios
         if result.is_err() {
@@ -98,6 +98,8 @@ mod tests {
                 "Unexpected error type: {}",
                 err
             );
+            // Clean up
+            let _ = fs::remove_dir_all(&temp_dir);
             return;
         }
 
@@ -105,14 +107,20 @@ mod tests {
         // Should end with the model filename
         assert!(path.to_string_lossy().ends_with(MODEL_FILENAME));
 
-        // Parent directory should exist (created by place_cache_file)
+        // Parent directory should exist (created by get_model_path)
         assert!(path.parent().unwrap().exists());
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 
     #[test]
-    fn test_model_path_uses_xdg_cache() {
-        // Verify that the model path is in the XDG cache directory
-        let result = get_model_path();
+    fn test_model_path_uses_configured_dir() {
+        // Verify that the model path uses the configured directory
+        let temp_dir = env::temp_dir().join("lolcommits-test-models-2");
+        let models_dir = temp_dir.to_string_lossy().to_string();
+
+        let result = get_model_path(&models_dir);
 
         // If the test fails due to network issues, that's acceptable
         if result.is_err() {
@@ -122,15 +130,19 @@ mod tests {
                 "Unexpected error type: {}",
                 err
             );
+            // Clean up
+            let _ = fs::remove_dir_all(&temp_dir);
             return;
         }
 
         let path = result.unwrap();
         let path_str = path.to_string_lossy();
 
-        // Should contain "cache" and "lolcommits" in the path
-        assert!(path_str.contains("cache"));
-        assert!(path_str.contains("lolcommits"));
+        // Should contain our test directory in the path
+        assert!(path_str.contains("lolcommits-test-models-2"));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 
     #[test]

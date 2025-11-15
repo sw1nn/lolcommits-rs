@@ -11,7 +11,6 @@ use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
-use xdg::BaseDirectories;
 
 use crate::{config, git, image_metadata, image_processor};
 
@@ -98,16 +97,26 @@ async fn index_handler() -> Html<&'static str> {
 }
 
 async fn list_images() -> Response {
-    match get_image_list() {
-        Ok(images) => {
-            let responses: Vec<ImageMetadata> = images.into_iter().map(ImageMetadata).collect();
-            Json(responses).into_response()
-        }
+    match config::Config::load() {
+        Ok(config) => match get_image_list(&config) {
+            Ok(images) => {
+                let responses: Vec<ImageMetadata> = images.into_iter().map(ImageMetadata).collect();
+                Json(responses).into_response()
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to list images");
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to list images: {}", e),
+                )
+                    .into_response()
+            }
+        },
         Err(e) => {
-            tracing::error!(error = %e, "Failed to list images");
+            tracing::error!(error = %e, "Failed to load config");
             (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to list images: {}", e),
+                format!("Failed to load config: {}", e),
             )
                 .into_response()
         }
@@ -131,11 +140,15 @@ async fn get_config() -> Response {
     }
 }
 
-fn get_image_list() -> Result<Vec<git::CommitMetadata>, Box<dyn std::error::Error>> {
-    let xdg_dirs = BaseDirectories::with_prefix("lolcommits")?;
-    let data_home = xdg_dirs.get_data_home();
+fn get_image_list(config: &config::Config) -> Result<Vec<git::CommitMetadata>, Box<dyn std::error::Error>> {
+    let images_dir = PathBuf::from(&config.server.images_dir);
 
-    let mut images: Vec<git::CommitMetadata> = std::fs::read_dir(&data_home)?
+    // Create directory if it doesn't exist
+    if !images_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut images: Vec<git::CommitMetadata> = std::fs::read_dir(&images_dir)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter(|path| path.extension().and_then(|s| s.to_str()) == Some("png"))
@@ -274,7 +287,7 @@ async fn process_image_async(
     };
 
     // Get output path
-    let output_path = get_output_path(&metadata.repo_name, &metadata.sha)?;
+    let output_path = get_output_path(&config, &metadata.repo_name, &metadata.sha)?;
 
     // Write to temporary file first, then atomically move to final destination
     let temp_file = tempfile::NamedTempFile::new_in(
@@ -296,13 +309,20 @@ async fn process_image_async(
     Ok(())
 }
 
-fn get_output_path(repo_name: &str, commit_sha: &str) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-    let xdg_dirs = BaseDirectories::with_prefix("lolcommits")?;
+fn get_output_path(
+    config: &config::Config,
+    repo_name: &str,
+    commit_sha: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    let images_dir = PathBuf::from(&config.server.images_dir);
+
+    // Ensure directory exists
+    std::fs::create_dir_all(&images_dir)?;
 
     let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
     let filename = format!("{}-{}-{}.png", repo_name, timestamp, commit_sha);
 
-    let output_path = xdg_dirs.place_data_file(filename)?;
+    let output_path = images_dir.join(filename);
 
     Ok(output_path)
 }

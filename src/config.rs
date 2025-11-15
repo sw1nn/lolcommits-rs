@@ -70,6 +70,12 @@ pub struct ServerConfig {
 
     #[serde(default = "default_gallery_title")]
     pub gallery_title: String,
+
+    #[serde(default = "default_images_dir")]
+    pub images_dir: String,
+
+    #[serde(default = "default_models_dir")]
+    pub models_dir: String,
 }
 
 fn default_font_name() -> String {
@@ -126,6 +132,14 @@ fn default_server_upload_timeout_secs() -> u64 {
     30
 }
 
+fn default_images_dir() -> String {
+    "/var/lib/lolcommits/images".to_string()
+}
+
+fn default_models_dir() -> String {
+    "/var/lib/lolcommits/models".to_string()
+}
+
 impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
@@ -159,6 +173,8 @@ impl Default for ServerConfig {
             background_path: default_background_path(),
             center_person: default_center_person(),
             gallery_title: default_gallery_title(),
+            images_dir: default_images_dir(),
+            models_dir: default_models_dir(),
         }
     }
 }
