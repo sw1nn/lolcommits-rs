@@ -79,6 +79,73 @@
             opacity: 0.5;
         }
 
+        .web-chyron {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.7), transparent);
+            color: #fff;
+            padding: 3rem 2rem 2rem;
+            opacity: 0;
+            transform: translateY(100%);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .web-chyron.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .web-chyron .commit-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .web-chyron .commit-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .web-chyron .commit-type-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .web-chyron .commit-scope {
+            color: #a0aec0;
+            font-size: 0.875rem;
+        }
+
+        .web-chyron .commit-meta {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        .web-chyron .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .web-chyron .meta-label {
+            color: #a0aec0;
+        }
+
         .nav-button {
             position: absolute;
             top: 50%;
@@ -280,6 +347,37 @@
 
             <div class="image-wrapper">
                 <img id="currentImage" alt="Lolcommit">
+                <div class="web-chyron" id="webChyron">
+                    <div class="commit-info">
+                        <div class="commit-title">
+                            <span class="commit-type-badge" id="chyronType"></span>
+                            <span id="chyronMessage"></span>
+                        </div>
+                        <div class="commit-scope" id="chyronScope"></div>
+                        <div class="commit-meta">
+                            <div class="meta-item">
+                                <span class="meta-label">Repo:</span>
+                                <span id="chyronRepo"></span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Branch:</span>
+                                <span id="chyronBranch"></span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">SHA:</span>
+                                <span id="chyronSha"></span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Date:</span>
+                                <span id="chyronDate"></span>
+                            </div>
+                            <div class="meta-item" id="chyronDiffItem">
+                                <span class="meta-label">Diff:</span>
+                                <span id="chyronDiff"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <button class="nav-button next" id="nextBtn" aria-label="Next image">
@@ -292,11 +390,13 @@
 
     <div class="keyboard-hint">
         <span>Use <span class="key">←</span> <span class="key">→</span> to navigate</span>
+        <span><span class="key">Space</span> to toggle info</span>
     </div>
 
     <script>
         let images = [];
         let currentIndex = 0;
+        let chyronVisible = false;
 
         // Preload images for smooth navigation
         const imageCache = new Map();
@@ -362,9 +462,40 @@
 
             document.getElementById('counter').textContent = `${index + 1} / ${images.length}`;
 
+            // Update chyron
+            updateChyron(image);
+
             // Update button states
             document.getElementById('prevBtn').disabled = index === 0;
             document.getElementById('nextBtn').disabled = index === images.length - 1;
+        }
+
+        function updateChyron(image) {
+            document.getElementById('chyronType').textContent = image.commit_type || 'commit';
+            document.getElementById('chyronMessage').textContent = image.commit_message || '';
+            document.getElementById('chyronScope').textContent = image.commit_scope ? `(${image.commit_scope})` : '';
+            document.getElementById('chyronRepo').textContent = image.repo_name;
+            document.getElementById('chyronBranch').textContent = image.branch_name || '-';
+            document.getElementById('chyronSha').textContent = image.commit_sha.substring(0, 7);
+            document.getElementById('chyronDate').textContent = image.date_time || image.timestamp;
+
+            const diffItem = document.getElementById('chyronDiffItem');
+            if (image.diff_stats) {
+                document.getElementById('chyronDiff').textContent = image.diff_stats;
+                diffItem.style.display = 'flex';
+            } else {
+                diffItem.style.display = 'none';
+            }
+        }
+
+        function toggleChyron() {
+            chyronVisible = !chyronVisible;
+            const chyron = document.getElementById('webChyron');
+            if (chyronVisible) {
+                chyron.classList.add('visible');
+            } else {
+                chyron.classList.remove('visible');
+            }
         }
 
         function showCarousel() {
@@ -401,6 +532,9 @@
             } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 prevImage();
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                toggleChyron();
             }
         });
 

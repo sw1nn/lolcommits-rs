@@ -14,6 +14,12 @@ struct Args {
 
     #[arg(help = "The commit SHA")]
     sha: String,
+
+    #[arg(long, help = "Enable chyron overlay (overrides config)")]
+    enable_chyron: bool,
+
+    #[arg(long, help = "Disable chyron overlay (overrides config)")]
+    disable_chyron: bool,
 }
 
 fn main() -> Result<()> {
@@ -29,8 +35,17 @@ fn main() -> Result<()> {
     tracing::info!(message = %args.message, sha = %args.sha, "Starting lolcommits");
 
     // Load configuration
-    let config = config::Config::load()?;
+    let mut config = config::Config::load()?;
     tracing::debug!(?config, "Loaded configuration");
+
+    // Override chyron setting if CLI flags are provided
+    if args.enable_chyron {
+        config.enable_chyron = true;
+        tracing::info!("Chyron enabled via --enable-chyron flag");
+    } else if args.disable_chyron {
+        config.enable_chyron = false;
+        tracing::info!("Chyron disabled via --disable-chyron flag");
+    }
 
     let repo_name = git::get_repo_name()?;
     let branch_name = git::get_branch_name()?;
@@ -48,17 +63,23 @@ fn main() -> Result<()> {
     let message_without_prefix = strip_commit_prefix(first_line);
     let scope = parse_commit_scope(first_line);
 
-    let final_image = image_processor::overlay_chyron(
-        processed_image,
-        &message_without_prefix,
-        &commit_type,
-        &scope,
-        &repo_name,
-        &diff_stat,
-        &args.sha,
-        &config,
-    )?;
-    tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
+    let final_image = if config.enable_chyron {
+        let image_with_chyron = image_processor::overlay_chyron(
+            processed_image,
+            &message_without_prefix,
+            &commit_type,
+            &scope,
+            &repo_name,
+            &diff_stat,
+            &args.sha,
+            &config,
+        )?;
+        tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
+        image_with_chyron
+    } else {
+        tracing::info!("Chyron disabled, skipping overlay");
+        processed_image
+    };
 
     let output_path = get_output_path(&repo_name, &args.sha)?;
 

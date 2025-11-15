@@ -40,6 +40,9 @@ pub struct Config {
 
     #[serde(default = "default_center_person")]
     pub center_person: bool,
+
+    #[serde(default = "default_enable_chyron")]
+    pub enable_chyron: bool,
 }
 
 fn default_font_name() -> String {
@@ -80,6 +83,10 @@ fn default_center_person() -> bool {
     true
 }
 
+fn default_enable_chyron() -> bool {
+    true
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -95,6 +102,7 @@ impl Default for Config {
             title_font_size: default_title_font_size(),
             info_font_size: default_info_font_size(),
             center_person: default_center_person(),
+            enable_chyron: default_enable_chyron(),
         }
     }
 }
