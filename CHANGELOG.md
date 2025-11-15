@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.1 - 2025-11-15
+#### Bug Fixes
+- (**packaging**) disable LTO to resolve OpenCV linking errors - (51b7f63) - Neale Swinnerton
+#### Tests
+- (**git**) create temporary git repo fixture for tests - (902c595) - Neale Swinnerton
+#### Build system
+- (**packaging**) add .gitignore for Arch Linux build artifacts - (63ffdfc) - Neale Swinnerton
+
+- - -
+
 ## v0.2.0 - 2025-11-15
 #### Features
 - (**config**) add configurable directories for images and models - (c9ce400) - Neale Swinnerton
