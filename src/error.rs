@@ -1,8 +1,8 @@
-use derive_more::{Display, Error as DeriveError, From};
+use derive_more::From;
 
 pub type Result<T = ()> = std::result::Result<T, Error>;
 
-#[derive(Debug, Display, DeriveError, From)]
+#[derive(Debug, From)]
 pub enum Error {
     #[from]
     Git(git2::Error),
@@ -19,24 +19,19 @@ pub enum Error {
     #[from]
     OpenCV(opencv::Error),
 
-    #[display("Not in a git repository")]
     NotInGitRepo,
-
-    #[display("Could not determine home directory")]
     NoHomeDirectory,
-
-    #[display("Could not determine repository name")]
     NoRepoName,
-
-    #[display("Git command failed")]
     GitCommandFailed,
-
-    #[display("Configuration error: {message}")]
     ConfigError { message: String },
-
-    #[display("Failed to download model: {message}")]
     ModelDownloadError { message: String },
-
-    #[display("Model validation failed: {message}")]
     ModelValidationError { message: String },
 }
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        write!(fmt, "{self:?}")
+    }
+}
+
+impl std::error::Error for Error {}
