@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.0 - 2025-11-15
+#### Features
+- (**config**) add configurable directories for images and models - (c9ce400) - Neale Swinnerton
+- (**gallery**) add non-disruptive new image notifications - (ecbf81a) - Neale Swinnerton
+- (**server**) add SSE auto-refresh for gallery and fix display issues - (5f2eaa9) - Neale Swinnerton
+#### Refactoring
+- (**paths**) use AsRef<Path> for path function parameters - (2effa03) - Neale Swinnerton
+
+- - -
+
 ## v0.1.0 - 2025-11-15
 #### Features
 - (**background**) Replace OpenCV compositing with image crate - (d8e4dc4) - Neale Swinnerton
