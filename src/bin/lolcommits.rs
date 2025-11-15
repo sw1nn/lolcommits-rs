@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use sw1nn_lolcommits_rs::{camera, config, error, git, image_processor};
 
-use error::Result;
+use error::{Error::*, Result};
 
 #[derive(Parser, Debug)]
 #[command(name = "lolcommits")]
@@ -108,7 +108,7 @@ fn parse_commit_scope(message: &str) -> String {
 
 fn get_output_path(repo_name: &str, commit_sha: &str) -> Result<PathBuf> {
     let xdg_dirs = xdg::BaseDirectories::with_prefix("lolcommits").map_err(|e| {
-        error::LolcommitsError::ConfigError {
+        ConfigError {
             message: format!("Failed to get XDG base directories: {}", e),
         }
     })?;
@@ -119,7 +119,7 @@ fn get_output_path(repo_name: &str, commit_sha: &str) -> Result<PathBuf> {
     let output_path =
         xdg_dirs
             .place_data_file(filename)
-            .map_err(|e| error::LolcommitsError::ConfigError {
+            .map_err(|e| ConfigError {
                 message: format!("Failed to create data directory: {}", e),
             })?;
 

@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{Error::*, Result};
 use std::fs;
 use std::path::PathBuf;
 use xdg::BaseDirectories;
@@ -12,13 +12,13 @@ const MODEL_MD5: &str = "60024c5c889badc19c04ad937298a77b";
 
 pub fn get_model_path() -> Result<PathBuf> {
     let xdg_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
-        crate::error::LolcommitsError::ConfigError {
+        ConfigError {
             message: format!("Failed to get XDG base directories: {}", e),
         }
     })?;
 
     let model_path = xdg_dirs.place_cache_file(MODEL_FILENAME).map_err(|e| {
-        crate::error::LolcommitsError::ConfigError {
+        ConfigError {
             message: format!("Failed to create cache directory: {}", e),
         }
     })?;
@@ -32,18 +32,18 @@ pub fn get_model_path() -> Result<PathBuf> {
     Ok(model_path)
 }
 
-fn download_model(path: &PathBuf) -> Result<()> {
+fn download_model(path: &PathBuf) -> Result {
     tracing::debug!(url = MODEL_URL, "Requesting model download");
 
     let response = reqwest::blocking::get(MODEL_URL).map_err(|e| {
-        crate::error::LolcommitsError::ModelDownloadError {
+        ModelDownloadError {
             message: format!("Network request failed: {}", e),
         }
     })?;
 
     let status = response.status();
     if !status.is_success() {
-        return Err(crate::error::LolcommitsError::ModelDownloadError {
+        return Err(ModelDownloadError {
             message: format!("HTTP error {}: {}", status.as_u16(), status.canonical_reason().unwrap_or("Unknown")),
         });
     }
@@ -54,14 +54,14 @@ fn download_model(path: &PathBuf) -> Result<()> {
     }
 
     let bytes = response.bytes().map_err(|e| {
-        crate::error::LolcommitsError::ModelDownloadError {
+        ModelDownloadError {
             message: format!("Failed to read response body: {}", e),
         }
     })?;
 
     // Validate minimum size (ONNX models should be at least a few KB)
     if bytes.len() < 1024 {
-        return Err(crate::error::LolcommitsError::ModelValidationError {
+        return Err(ModelValidationError {
             message: format!("Downloaded file too small ({} bytes), likely not a valid model", bytes.len()),
         });
     }
@@ -70,7 +70,7 @@ fn download_model(path: &PathBuf) -> Result<()> {
     let digest = md5::compute(&bytes);
     let checksum = format!("{:x}", digest);
     if checksum != MODEL_MD5 {
-        return Err(crate::error::LolcommitsError::ModelValidationError {
+        return Err(ModelValidationError {
             message: format!(
                 "MD5 checksum mismatch: expected {}, got {}",
                 MODEL_MD5, checksum
@@ -82,14 +82,14 @@ fn download_model(path: &PathBuf) -> Result<()> {
     // Create parent directory if it doesn't exist
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| {
-            crate::error::LolcommitsError::ModelDownloadError {
+            ModelDownloadError {
                 message: format!("Failed to create model directory: {}", e),
             }
         })?;
     }
 
     fs::write(path, &bytes).map_err(|e| {
-        crate::error::LolcommitsError::ModelDownloadError {
+        ModelDownloadError {
             message: format!("Failed to write model file: {}", e),
         }
     })?;
@@ -116,7 +116,7 @@ mod tests {
             let err = result.unwrap_err();
             // Only accept network-related failures, not logic errors
             assert!(
-                matches!(err, crate::error::LolcommitsError::ModelDownloadError { .. }),
+                matches!(err, ModelDownloadError { .. }),
                 "Unexpected error type: {}",
                 err
             );
@@ -140,7 +140,7 @@ mod tests {
         if result.is_err() {
             let err = result.unwrap_err();
             assert!(
-                matches!(err, crate::error::LolcommitsError::ModelDownloadError { .. }),
+                matches!(err, ModelDownloadError { .. }),
                 "Unexpected error type: {}",
                 err
             );

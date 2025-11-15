@@ -1,4 +1,4 @@
-use crate::error::{LolcommitsError, Result};
+use crate::error::{Error::*, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use xdg::BaseDirectories;
@@ -133,13 +133,13 @@ impl Config {
     /// Load configuration from XDG_CONFIG_HOME/lolcommits/config.toml
     pub fn load() -> Result<Self> {
         let base_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
-            LolcommitsError::ConfigError {
+            ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
             }
         })?;
 
         let config_path = base_dirs.place_config_file("config.toml").map_err(|e| {
-            LolcommitsError::ConfigError {
+            ConfigError {
                 message: format!("Failed to create config directory: {}", e),
             }
         })?;
@@ -153,12 +153,12 @@ impl Config {
 
         tracing::debug!(path = %config_path.display(), "Loading config");
         let contents =
-            std::fs::read_to_string(&config_path).map_err(|e| LolcommitsError::ConfigError {
+            std::fs::read_to_string(&config_path).map_err(|e| ConfigError {
                 message: format!("Failed to read config file: {}", e),
             })?;
 
         let config: Config =
-            toml::from_str(&contents).map_err(|e| LolcommitsError::ConfigError {
+            toml::from_str(&contents).map_err(|e| ConfigError {
                 message: format!("Failed to parse config file: {}", e),
             })?;
 
@@ -167,24 +167,24 @@ impl Config {
     }
 
     /// Save configuration to XDG_CONFIG_HOME/lolcommits/config.toml
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&self) -> Result {
         let base_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
-            LolcommitsError::ConfigError {
+            ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
             }
         })?;
 
         let config_path = base_dirs.place_config_file("config.toml").map_err(|e| {
-            LolcommitsError::ConfigError {
+            ConfigError {
                 message: format!("Failed to create config directory: {}", e),
             }
         })?;
 
-        let contents = toml::to_string_pretty(self).map_err(|e| LolcommitsError::ConfigError {
+        let contents = toml::to_string_pretty(self).map_err(|e| ConfigError {
             message: format!("Failed to serialize config: {}", e),
         })?;
 
-        std::fs::write(&config_path, contents).map_err(|e| LolcommitsError::ConfigError {
+        std::fs::write(&config_path, contents).map_err(|e| ConfigError {
             message: format!("Failed to write config file: {}", e),
         })?;
 
@@ -195,7 +195,7 @@ impl Config {
     /// Get the path to the config file
     pub fn config_path() -> Result<PathBuf> {
         let base_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
-            LolcommitsError::ConfigError {
+            ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
             }
         })?;

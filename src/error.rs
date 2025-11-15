@@ -1,9 +1,9 @@
-use derive_more::{Display, Error, From};
+use derive_more::{Display, Error as DeriveError, From};
 
-pub type Result<T> = std::result::Result<T, LolcommitsError>;
+pub type Result<T = ()> = std::result::Result<T, Error>;
 
-#[derive(Debug, Display, Error, From)]
-pub enum LolcommitsError {
+#[derive(Debug, Display, DeriveError, From)]
+pub enum Error {
     #[from]
     Git(git2::Error),
 

@@ -1,4 +1,4 @@
-use crate::error::{LolcommitsError, Result};
+use crate::error::{Error::*, Result};
 use git2::Repository;
 use std::env;
 use std::process::Command;
@@ -6,11 +6,11 @@ use std::process::Command;
 pub fn get_repo_name() -> Result<String> {
     let repo = open_repo()?;
 
-    let path = repo.path().parent().ok_or(LolcommitsError::NoRepoName)?;
+    let path = repo.path().parent().ok_or(NoRepoName)?;
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or(LolcommitsError::NoRepoName)?;
+        .ok_or(NoRepoName)?;
 
     Ok(name.to_string())
 }
@@ -21,7 +21,7 @@ pub fn get_diff_shortstat() -> Result<String> {
         .output()?;
 
     if !output.status.success() {
-        return Err(LolcommitsError::GitCommandFailed);
+        return Err(GitCommandFailed);
     }
 
     let stat = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -30,7 +30,7 @@ pub fn get_diff_shortstat() -> Result<String> {
 
 fn open_repo() -> Result<Repository> {
     let current_dir = env::current_dir()?;
-    Repository::discover(current_dir).map_err(|_| LolcommitsError::NotInGitRepo)
+    Repository::discover(current_dir).map_err(|_| NotInGitRepo)
 }
 
 #[cfg(test)]
