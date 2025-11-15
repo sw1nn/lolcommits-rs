@@ -15,11 +15,11 @@ struct Args {
     #[arg(help = "The commit SHA")]
     sha: String,
 
-    #[arg(long, help = "Enable chyron overlay (overrides config)")]
-    enable_chyron: bool,
+    #[arg(long, action = clap::ArgAction::SetTrue, help = "Enable chyron overlay (overrides config)")]
+    chyron: bool,
 
-    #[arg(long, help = "Disable chyron overlay (overrides config)")]
-    disable_chyron: bool,
+    #[arg(long, action = clap::ArgAction::SetTrue, help = "Disable chyron overlay (overrides config)")]
+    no_chyron: bool,
 }
 
 fn main() -> Result<()> {
@@ -39,12 +39,12 @@ fn main() -> Result<()> {
     tracing::debug!(?config, "Loaded configuration");
 
     // Override chyron setting if CLI flags are provided
-    if args.enable_chyron {
+    if args.chyron {
         config.enable_chyron = true;
-        tracing::info!("Chyron enabled via --enable-chyron flag");
-    } else if args.disable_chyron {
+        tracing::debug!("Chyron enabled via --chyron flag");
+    } else if args.no_chyron {
         config.enable_chyron = false;
-        tracing::info!("Chyron disabled via --disable-chyron flag");
+        tracing::debug!("Chyron disabled via --no-chyron flag");
     }
 
     let repo_name = git::get_repo_name()?;
@@ -74,10 +74,10 @@ fn main() -> Result<()> {
             &args.sha,
             &config,
         )?;
-        tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
+        tracing::debug!(commit_type = %commit_type, "Overlaid chyron with stats");
         image_with_chyron
     } else {
-        tracing::info!("Chyron disabled, skipping overlay");
+        tracing::debug!("Chyron disabled, skipping overlay");
         processed_image
     };
 
