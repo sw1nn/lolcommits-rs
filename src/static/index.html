@@ -213,6 +213,40 @@
             font-size: 0.95rem;
             font-weight: 500;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            display: inline-block;
+        }
+
+        .new-images-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff4444;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            box-shadow: 0 2px 8px rgba(255, 68, 68, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        .new-images-badge.hidden {
+            display: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
         }
 
         .loading-screen {
@@ -322,6 +356,14 @@
                 font-size: 0.85rem;
             }
 
+            .new-images-badge {
+                width: 20px;
+                height: 20px;
+                font-size: 0.6rem;
+                top: -6px;
+                right: -6px;
+            }
+
             h1 {
                 font-size: 1.8rem;
             }
@@ -368,7 +410,9 @@
                 →
             </button>
 
-            <div class="counter" id="counter"></div>
+            <div class="counter" id="counter">
+                <span class="new-images-badge hidden" id="newImagesBadge">!</span>
+            </div>
         </div>
     </div>
 
@@ -381,6 +425,7 @@
         let images = [];
         let currentIndex = 0;
         let chyronVisible = false;
+        let newImagesCount = 0;
 
         // Preload images for smooth navigation
         const imageCache = new Map();
@@ -401,11 +446,13 @@
             }
         }
 
-        async function loadImages() {
+        async function loadImages(silentRefresh = false) {
             try {
                 const response = await fetch('/api/images');
                 if (!response.ok) throw new Error('Failed to load images');
 
+                const oldLength = images.length;
+                const previousIndex = currentIndex;
                 images = await response.json();
 
                 if (images.length === 0) {
@@ -413,9 +460,17 @@
                     return;
                 }
 
-                // Preload first few images
-                preloadImages(0, Math.min(3, images.length));
+                // If this is a silent refresh (from SSE), don't change the display
+                if (silentRefresh) {
+                    // Update the counter to reflect new total
+                    updateCounter();
+                    // Preload the newest images in the background
+                    preloadImages(0, Math.min(3, images.length));
+                    return;
+                }
 
+                // Normal load: display the first image
+                preloadImages(0, Math.min(3, images.length));
                 showCarousel();
                 displayImage(0);
             } catch (error) {
@@ -434,11 +489,35 @@
             }
         }
 
+        function updateCounter() {
+            const counterText = document.getElementById('counter');
+            const badge = document.getElementById('newImagesBadge');
+
+            // Update counter text (remove badge from textContent calculation)
+            const textNode = Array.from(counterText.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+            if (textNode) {
+                textNode.textContent = `${currentIndex + 1} / ${images.length}`;
+            } else {
+                // Create text node if it doesn't exist
+                counterText.insertBefore(document.createTextNode(`${currentIndex + 1} / ${images.length}`), counterText.firstChild);
+            }
+
+            // Update badge visibility
+            if (newImagesCount > 0) {
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
         function displayImage(index) {
             if (index < 0 || index >= images.length) return;
 
             currentIndex = index;
             const image = images[index];
+
+            // Clear the new images badge when user navigates
+            newImagesCount = 0;
 
             const imgElement = document.getElementById('currentImage');
             const wrapper = imgElement.parentElement;
@@ -460,7 +539,7 @@
                 };
             }
 
-            document.getElementById('counter').textContent = `${index + 1} / ${images.length}`;
+            updateCounter();
 
             // Update chyron
             updateChyron(image);
@@ -582,8 +661,13 @@
 
             eventSource.onmessage = (event) => {
                 if (event.data === 'new_image') {
-                    console.log('New image uploaded, refreshing list');
-                    loadImages();
+                    console.log('New image uploaded - doing silent refresh');
+
+                    // Increment the new images counter
+                    newImagesCount++;
+
+                    // Silently refresh the image list (updates counter and badge, but doesn't change display)
+                    loadImages(true);  // silentRefresh = true
                 }
             };
 
