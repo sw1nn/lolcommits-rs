@@ -17,9 +17,9 @@ fn parse_camera_device(device: &str) -> Result<CameraIndex> {
 
         let resolved_path = if path.is_symlink() {
             tracing::debug!(symlink = device, "Resolving symlink");
-            std::fs::read_link(path).map_err(|e| Error::CameraError {
-                message: e.to_string(),
+            std::fs::read_link(path).map_err(|source| Error::CameraSymlinkResolution {
                 path: path.to_path_buf(),
+                source,
             })?
         } else {
             path.to_path_buf()
@@ -37,8 +37,7 @@ fn parse_camera_device(device: &str) -> Result<CameraIndex> {
             }
         }
 
-        return Err(Error::CameraError {
-            message: "Could not extract video device index from path".to_string(),
+        return Err(Error::CameraInvalidDevicePath {
             path: path.to_path_buf(),
         });
     }

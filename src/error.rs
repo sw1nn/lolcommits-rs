@@ -20,14 +20,59 @@ pub enum Error {
     #[from]
     OpenCV(opencv::Error),
 
+    #[from]
+    Xdg(xdg::BaseDirectoriesError),
+
+    #[from]
+    TomlDeserialize(toml::de::Error),
+
+    #[from]
+    TomlSerialize(toml::ser::Error),
+
+    #[from]
+    Reqwest(reqwest::Error),
+
     NotInGitRepo,
     NoHomeDirectory,
     NoRepoName,
     GitCommandFailed,
-    ConfigError { message: String },
-    ModelDownloadError { message: String },
-    ModelValidationError { message: String },
-    CameraError { message: String, path: PathBuf },
+
+    ConfigFileRead {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    ConfigFileWrite {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    HttpError {
+        status: u16,
+    },
+
+    ModelFileTooSmall {
+        size: usize,
+    },
+    ModelChecksumMismatch {
+        expected: String,
+        actual: String,
+    },
+    ModelDirectoryCreate {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    ModelFileWrite {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    CameraSymlinkResolution {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    CameraInvalidDevicePath {
+        path: PathBuf,
+    },
 }
 
 impl std::fmt::Display for Error {

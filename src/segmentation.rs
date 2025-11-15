@@ -1,4 +1,4 @@
-use crate::error::{Error::*, Result};
+use crate::error::{Error, Result};
 use std::fs;
 use std::path::PathBuf;
 use xdg::BaseDirectories;
@@ -11,17 +11,9 @@ const MODEL_FILENAME: &str = "u2net.onnx";
 const MODEL_MD5: &str = "60024c5c889badc19c04ad937298a77b";
 
 pub fn get_model_path() -> Result<PathBuf> {
-    let xdg_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
-        ConfigError {
-            message: format!("Failed to get XDG base directories: {}", e),
-        }
-    })?;
+    let xdg_dirs = BaseDirectories::with_prefix("lolcommits")?;
 
-    let model_path = xdg_dirs.place_cache_file(MODEL_FILENAME).map_err(|e| {
-        ConfigError {
-            message: format!("Failed to create cache directory: {}", e),
-        }
-    })?;
+    let model_path = xdg_dirs.place_cache_file(MODEL_FILENAME)?;
 
     if !model_path.exists() {
         tracing::info!("Downloading segmentation model (this happens once)...");
@@ -35,16 +27,12 @@ pub fn get_model_path() -> Result<PathBuf> {
 fn download_model(path: &PathBuf) -> Result {
     tracing::debug!(url = MODEL_URL, "Requesting model download");
 
-    let response = reqwest::blocking::get(MODEL_URL).map_err(|e| {
-        ModelDownloadError {
-            message: format!("Network request failed: {}", e),
-        }
-    })?;
+    let response = reqwest::blocking::get(MODEL_URL)?;
 
     let status = response.status();
     if !status.is_success() {
-        return Err(ModelDownloadError {
-            message: format!("HTTP error {}: {}", status.as_u16(), status.canonical_reason().unwrap_or("Unknown")),
+        return Err(Error::HttpError {
+            status: status.as_u16(),
         });
     }
 
@@ -53,45 +41,35 @@ fn download_model(path: &PathBuf) -> Result {
         tracing::debug!(bytes = len, "Downloading model");
     }
 
-    let bytes = response.bytes().map_err(|e| {
-        ModelDownloadError {
-            message: format!("Failed to read response body: {}", e),
-        }
-    })?;
+    let bytes = response.bytes()?;
 
     // Validate minimum size (ONNX models should be at least a few KB)
     if bytes.len() < 1024 {
-        return Err(ModelValidationError {
-            message: format!("Downloaded file too small ({} bytes), likely not a valid model", bytes.len()),
-        });
+        return Err(Error::ModelFileTooSmall { size: bytes.len() });
     }
 
     // Verify MD5 checksum
     let digest = md5::compute(&bytes);
     let checksum = format!("{:x}", digest);
     if checksum != MODEL_MD5 {
-        return Err(ModelValidationError {
-            message: format!(
-                "MD5 checksum mismatch: expected {}, got {}",
-                MODEL_MD5, checksum
-            ),
+        return Err(Error::ModelChecksumMismatch {
+            expected: MODEL_MD5.to_string(),
+            actual: checksum,
         });
     }
     tracing::debug!(checksum, "Model checksum verified");
 
     // Create parent directory if it doesn't exist
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
-            ModelDownloadError {
-                message: format!("Failed to create model directory: {}", e),
-            }
+        fs::create_dir_all(parent).map_err(|source| Error::ModelDirectoryCreate {
+            path: parent.to_path_buf(),
+            source,
         })?;
     }
 
-    fs::write(path, &bytes).map_err(|e| {
-        ModelDownloadError {
-            message: format!("Failed to write model file: {}", e),
-        }
+    fs::write(path, &bytes).map_err(|source| Error::ModelFileWrite {
+        path: path.to_path_buf(),
+        source,
     })?;
 
     tracing::debug!(path = ?path, size = bytes.len(), "Model saved successfully");
@@ -116,7 +94,7 @@ mod tests {
             let err = result.unwrap_err();
             // Only accept network-related failures, not logic errors
             assert!(
-                matches!(err, ModelDownloadError { .. }),
+                matches!(err, Error::Reqwest(_) | Error::HttpError { .. }),
                 "Unexpected error type: {}",
                 err
             );
@@ -140,7 +118,7 @@ mod tests {
         if result.is_err() {
             let err = result.unwrap_err();
             assert!(
-                matches!(err, ModelDownloadError { .. }),
+                matches!(err, Error::Reqwest(_) | Error::HttpError { .. }),
                 "Unexpected error type: {}",
                 err
             );
