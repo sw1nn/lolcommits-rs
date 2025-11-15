@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-
-use crate::{camera, config, error::Result, git, image_metadata, image_processor};
+use crate::{camera, config, error::Result, git};
+use serde::Serialize;
+use std::io::Cursor;
 
 pub struct CaptureArgs {
     pub message: String,
@@ -9,7 +9,22 @@ pub struct CaptureArgs {
     pub no_chyron: bool,
 }
 
-pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Result<PathBuf> {
+#[derive(Debug, Serialize)]
+struct UploadMetadata {
+    sha: String,
+    message: String,
+    commit_type: String,
+    scope: String,
+    timestamp: String,
+    repo_name: String,
+    branch_name: String,
+    files_changed: u32,
+    insertions: u32,
+    deletions: u32,
+    enable_chyron: bool,
+}
+
+pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Result<()> {
     tracing::info!(message = %args.message, sha = %args.sha, "Starting lolcommits");
 
     // Override chyron setting if CLI flags are provided
@@ -21,6 +36,7 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
         tracing::debug!("Chyron disabled via --no-chyron flag");
     }
 
+    // Gather git information
     let repo_name = git::get_repo_name()?;
     let branch_name = git::get_branch_name()?;
     let stats = git::get_diff_stats(&args.sha)?;
@@ -33,70 +49,97 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
         "Got git info"
     );
 
+    // Capture image from webcam
     let image = camera::capture_image(&config.camera_device)?;
     tracing::info!("Captured image from webcam");
 
-    let processed_image = image_processor::replace_background(image, &config)?;
-    tracing::info!("Background replaced");
-
+    // Parse commit message
     let commit_type = git::parse_commit_type(&args.message);
     let first_line = args.message.lines().next().unwrap_or(&args.message);
     let message_without_prefix = git::strip_commit_prefix(first_line);
     let scope = git::parse_commit_scope(first_line);
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    // Create unified metadata struct
-    let metadata = git::CommitMetadata {
-        path: PathBuf::new(), // Not used for creating images
+    // Create metadata for upload
+    let metadata = UploadMetadata {
         sha: args.sha.clone(),
         message: message_without_prefix,
-        commit_type: commit_type.clone(),
+        commit_type,
         scope,
         timestamp,
-        repo_name: repo_name.clone(),
+        repo_name,
         branch_name,
-        stats,
+        files_changed: stats.files_changed,
+        insertions: stats.insertions,
+        deletions: stats.deletions,
+        enable_chyron: config.enable_chyron,
     };
 
-    let final_image = if config.enable_chyron {
-        let image_with_chyron =
-            image_processor::overlay_chyron(processed_image, &metadata, &config)?;
-        tracing::debug!(commit_type = %commit_type, "Overlaid chyron with stats");
-        image_with_chyron
-    } else {
-        tracing::debug!("Chyron disabled, skipping overlay");
-        processed_image
-    };
-
-    let output_path = get_output_path(&repo_name, &args.sha)?;
-
-    // Write to temporary file first, then atomically move to final destination
-    let temp_file = tempfile::NamedTempFile::new_in(
-        output_path
-            .parent()
-            .ok_or_else(|| std::io::Error::other("Invalid output path"))?,
-    )?;
-    let temp_path = temp_file.path();
-
-    tracing::debug!(temp_path = %temp_path.display(), "Writing to temporary file");
-    image_metadata::save_png_with_metadata(&final_image, temp_path, &metadata)?;
-
-    // Atomically move temp file to final destination
-    temp_file
-        .persist(&output_path)
+    // Encode image to PNG bytes
+    let mut png_bytes = Vec::new();
+    image
+        .write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-    tracing::info!(path = %output_path.display(), "Saved lolcommit with metadata");
+    tracing::debug!(bytes = png_bytes.len(), "Encoded image to PNG");
 
-    Ok(output_path)
+    // Upload to server
+    upload_to_server(&config, png_bytes, metadata)?;
+
+    Ok(())
 }
 
-fn get_output_path(repo_name: &str, commit_sha: &str) -> Result<PathBuf> {
-    let xdg_dirs = xdg::BaseDirectories::with_prefix("lolcommits")?;
+fn upload_to_server(
+    config: &config::Config,
+    image_bytes: Vec<u8>,
+    metadata: UploadMetadata,
+) -> Result<()> {
+    let url = format!("{}/api/upload", config.server_url);
+    tracing::info!(url = %url, "Uploading to server");
 
-    let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let filename = format!("{}-{}-{}.png", repo_name, timestamp, commit_sha);
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(
+            config.server_upload_timeout_secs,
+        ))
+        .build()?;
 
-    let output_path = xdg_dirs.place_data_file(filename)?;
+    let metadata_json = serde_json::to_string(&metadata)?;
 
-    Ok(output_path)
+    let form = reqwest::blocking::multipart::Form::new()
+        .part(
+            "metadata",
+            reqwest::blocking::multipart::Part::text(metadata_json)
+                .mime_str("application/json")?,
+        )
+        .part(
+            "image",
+            reqwest::blocking::multipart::Part::bytes(image_bytes)
+                .file_name("image.png")
+                .mime_str("image/png")?,
+        );
+
+    let response = client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to connect to server");
+            std::io::Error::new(
+                std::io::ErrorKind::ConnectionRefused,
+                format!("Failed to connect to lolcommitsd at {}: {}", url, e),
+            )
+        })?;
+
+    if response.status() == reqwest::StatusCode::ACCEPTED {
+        tracing::info!("Upload accepted, server processing in background");
+        Ok(())
+    } else {
+        let status = response.status();
+        let error_text = response.text().unwrap_or_else(|_| "Unknown error".to_string());
+        tracing::error!(status = %status, error = %error_text, "Upload failed");
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Server returned {}: {}", status, error_text),
+        )
+        .into())
+    }
 }

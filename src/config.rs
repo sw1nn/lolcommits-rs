@@ -46,6 +46,12 @@ pub struct Config {
 
     #[serde(default = "default_gallery_title")]
     pub gallery_title: String,
+
+    #[serde(default = "default_server_url")]
+    pub server_url: String,
+
+    #[serde(default = "default_server_upload_timeout_secs")]
+    pub server_upload_timeout_secs: u64,
 }
 
 fn default_font_name() -> String {
@@ -94,6 +100,14 @@ fn default_gallery_title() -> String {
     "Lolcommits Gallery".to_string()
 }
 
+fn default_server_url() -> String {
+    "http://127.0.0.1:3000".to_string()
+}
+
+fn default_server_upload_timeout_secs() -> u64 {
+    30
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -111,6 +125,8 @@ impl Default for Config {
             center_person: default_center_person(),
             enable_chyron: default_enable_chyron(),
             gallery_title: default_gallery_title(),
+            server_url: default_server_url(),
+            server_upload_timeout_secs: default_server_upload_timeout_secs(),
         }
     }
 }

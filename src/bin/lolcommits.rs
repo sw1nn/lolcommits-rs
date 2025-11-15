@@ -40,9 +40,9 @@ fn main() -> Result<()> {
         no_chyron: args.no_chyron,
     };
 
-    let output_path = capture::capture_lolcommit(capture_args, config)?;
+    capture::capture_lolcommit(capture_args, config)?;
 
-    println!("Saved lolcommit to: {}", output_path.display());
+    println!("Lolcommit uploaded successfully!");
 
     Ok(())
 }

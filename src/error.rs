@@ -38,6 +38,9 @@ pub enum Error {
     #[from]
     PngDecoding(png::DecodingError),
 
+    #[from]
+    SerdeJson(serde_json::Error),
+
     NotInGitRepo,
     NoHomeDirectory,
     NoRepoName,
