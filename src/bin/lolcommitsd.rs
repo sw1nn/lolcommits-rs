@@ -4,6 +4,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sw1nn_lolcommits_rs::image_metadata;
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -16,6 +17,11 @@ struct ImageInfo {
     repo_name: String,
     timestamp: String,
     commit_sha: String,
+    commit_message: String,
+    commit_type: String,
+    commit_scope: String,
+    branch_name: String,
+    diff_stats: String,
     date_time: Option<String>,
 }
 
@@ -80,7 +86,7 @@ fn get_image_list() -> Result<Vec<ImageInfo>, Box<dyn std::error::Error>> {
 
         if path.extension().and_then(|s| s.to_str()) == Some("png") {
             if let Some(filename) = path.file_name().and_then(|s| s.to_str()) {
-                if let Some(info) = parse_filename(filename) {
+                if let Some(info) = parse_filename(&path, filename) {
                     images.push(info);
                 }
             }
@@ -93,9 +99,28 @@ fn get_image_list() -> Result<Vec<ImageInfo>, Box<dyn std::error::Error>> {
     Ok(images)
 }
 
-fn parse_filename(filename: &str) -> Option<ImageInfo> {
+fn parse_filename(path: &std::path::Path, filename: &str) -> Option<ImageInfo> {
+    // Try to read metadata from PNG file first
+    if let Ok(Some(metadata)) = image_metadata::read_png_metadata(path) {
+        tracing::debug!(filename, "Read metadata from PNG");
+        return Some(ImageInfo {
+            filename: filename.to_string(),
+            repo_name: metadata.repo_name,
+            timestamp: metadata.timestamp.clone(),
+            commit_sha: metadata.commit_sha,
+            commit_message: metadata.commit_message,
+            commit_type: metadata.commit_type,
+            commit_scope: metadata.commit_scope,
+            branch_name: metadata.branch_name,
+            diff_stats: metadata.diff_stats,
+            date_time: Some(metadata.timestamp),
+        });
+    }
+
+    // Fallback: parse filename for old images without metadata
     // Expected format: {repo_name}-{timestamp}-{commit_sha}.png
     // timestamp format: %Y%m%d-%H%M%S
+    tracing::debug!(filename, "Falling back to filename parsing");
     let name = filename.strip_suffix(".png")?;
     let parts: Vec<&str> = name.rsplitn(3, '-').collect();
 
@@ -116,6 +141,11 @@ fn parse_filename(filename: &str) -> Option<ImageInfo> {
         repo_name,
         timestamp: timestamp.clone(),
         commit_sha,
+        commit_message: String::new(),
+        commit_type: String::new(),
+        commit_scope: String::new(),
+        branch_name: String::new(),
+        diff_stats: String::new(),
         date_time,
     })
 }

@@ -32,6 +32,12 @@ pub enum Error {
     #[from]
     Reqwest(reqwest::Error),
 
+    #[from]
+    PngEncoding(png::EncodingError),
+
+    #[from]
+    PngDecoding(png::DecodingError),
+
     NotInGitRepo,
     NoHomeDirectory,
     NoRepoName,

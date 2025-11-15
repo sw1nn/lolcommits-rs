@@ -28,6 +28,17 @@ pub fn get_diff_shortstat() -> Result<String> {
     Ok(stat)
 }
 
+pub fn get_branch_name() -> Result<String> {
+    let repo = open_repo()?;
+    let head = repo.head()?;
+
+    if let Some(branch_name) = head.shorthand() {
+        Ok(branch_name.to_string())
+    } else {
+        Ok("HEAD".to_string())
+    }
+}
+
 fn open_repo() -> Result<Repository> {
     let current_dir = env::current_dir()?;
     Repository::discover(current_dir).map_err(|_| NotInGitRepo)

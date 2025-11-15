@@ -31,3 +31,4 @@ axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["fs", "trace"] }
 serde_json = "1.0"
+png = "0.18"

@@ -2849,6 +2849,7 @@ dependencies = [
  "md5",
  "nokhwa",
  "opencv",
+ "png",
  "reqwest",
  "serde",
  "serde_json",

@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-use sw1nn_lolcommits_rs::{camera, config, error, git, image_processor};
+use sw1nn_lolcommits_rs::{camera, config, error, git, image_metadata, image_processor};
 
 use error::Result;
 
@@ -33,8 +33,9 @@ fn main() -> Result<()> {
     tracing::debug!(?config, "Loaded configuration");
 
     let repo_name = git::get_repo_name()?;
+    let branch_name = git::get_branch_name()?;
     let diff_stat = git::get_diff_shortstat()?;
-    tracing::info!(repo_name = %repo_name, diff_stat = %diff_stat, "Got git info");
+    tracing::info!(repo_name = %repo_name, branch = %branch_name, diff_stat = %diff_stat, "Got git info");
 
     let image = camera::capture_image(&config.camera_device)?;
     tracing::info!("Captured image from webcam");
@@ -60,9 +61,24 @@ fn main() -> Result<()> {
     tracing::info!(commit_type = %commit_type, "Overlaid chyron with stats");
 
     let output_path = get_output_path(&repo_name, &args.sha)?;
-    final_image.save(&output_path)?;
 
-    tracing::info!(path = %output_path.display(), "Saved lolcommit");
+    // Prepare metadata
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let metadata = image_metadata::CommitMetadata {
+        commit_sha: args.sha.clone(),
+        commit_message: message_without_prefix.clone(),
+        commit_type: commit_type.clone(),
+        commit_scope: scope.clone(),
+        timestamp,
+        repo_name: repo_name.clone(),
+        branch_name: branch_name.clone(),
+        diff_stats: diff_stat.clone(),
+    };
+
+    // Save with embedded metadata
+    image_metadata::save_png_with_metadata(&final_image, &output_path, metadata)?;
+
+    tracing::info!(path = %output_path.display(), "Saved lolcommit with metadata");
     println!("Saved lolcommit to: {}", output_path.display());
 
     Ok(())
