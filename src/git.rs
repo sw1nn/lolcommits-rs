@@ -1,9 +1,10 @@
 use crate::error::{Error::*, Result};
 use git2::Repository;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::process::Command;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiffStats {
     pub files_changed: u32,
     pub insertions: u32,
@@ -16,14 +17,62 @@ impl DiffStats {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommitMetadata {
+    #[serde(skip_serializing, default)]
+    pub path: std::path::PathBuf,
+    pub sha: String,
     pub message: String,
     pub commit_type: String,
     pub scope: String,
+    pub timestamp: String,
     pub repo_name: String,
-    pub sha: String,
+    pub branch_name: String,
     pub stats: DiffStats,
+}
+
+impl AsRef<std::path::Path> for CommitMetadata {
+    fn as_ref(&self) -> &std::path::Path {
+        &self.path
+    }
+}
+
+impl CommitMetadata {
+    /// Format diff stats as human-readable string for display
+    /// Example: "2 files changed, 15 insertions(+), 3 deletions(-)"
+    pub fn diff_stats_string(&self) -> String {
+        if self.stats.is_empty() {
+            return String::new();
+        }
+
+        let mut parts = vec![format!(
+            "{} file{} changed",
+            self.stats.files_changed,
+            if self.stats.files_changed == 1 {
+                ""
+            } else {
+                "s"
+            }
+        )];
+
+        if self.stats.insertions > 0 {
+            parts.push(format!(
+                "{} insertion{}(+)",
+                self.stats.insertions,
+                if self.stats.insertions == 1 { "" } else { "s" }
+            ));
+        }
+
+        if self.stats.deletions > 0 {
+            parts.push(format!(
+                "{} deletion{}(-)",
+                self.stats.deletions,
+                if self.stats.deletions == 1 { "" } else { "s" }
+            ));
+        }
+
+        parts.join(", ")
+    }
 }
 
 pub fn get_repo_name() -> Result<String> {
@@ -94,6 +143,49 @@ pub fn get_branch_name() -> Result<String> {
     }
 }
 
+/// Parse the commit type from a conventional commit message
+/// Example: "feat(scope): message" -> "feat"
+pub fn parse_commit_type(message: &str) -> String {
+    let first_line = message.lines().next().unwrap_or(message);
+
+    if let Some(colon_pos) = first_line.find(':') {
+        let prefix = &first_line[..colon_pos];
+
+        if let Some(paren_pos) = prefix.find('(') {
+            prefix[..paren_pos].trim().to_string()
+        } else {
+            prefix.trim().to_string()
+        }
+    } else {
+        "commit".to_string()
+    }
+}
+
+/// Strip the conventional commit prefix from a message
+/// Example: "feat(scope): message" -> "message"
+pub fn strip_commit_prefix(message: &str) -> String {
+    if let Some(colon_pos) = message.find(':') {
+        message[colon_pos + 1..].trim().to_string()
+    } else {
+        message.to_string()
+    }
+}
+
+/// Parse the scope from a conventional commit message
+/// Example: "feat(scope): message" -> "scope"
+pub fn parse_commit_scope(message: &str) -> String {
+    if let Some(colon_pos) = message.find(':') {
+        let prefix = &message[..colon_pos];
+
+        if let Some(open_paren) = prefix.find('(')
+            && let Some(close_paren) = prefix.find(')')
+        {
+            return prefix[open_paren + 1..close_paren].trim().to_string();
+        }
+    }
+
+    String::new()
+}
 
 fn open_repo() -> Result<Repository> {
     let current_dir = env::current_dir()?;

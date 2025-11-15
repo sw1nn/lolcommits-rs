@@ -1,28 +1,15 @@
 use crate::error::Result;
+use crate::git::{CommitMetadata, DiffStats};
 use image::DynamicImage;
 use png::Encoder;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-pub struct CommitMetadata {
-    pub commit_sha: String,
-    pub commit_message: String,
-    pub commit_type: String,
-    pub commit_scope: String,
-    pub timestamp: String,
-    pub repo_name: String,
-    pub branch_name: String,
-    pub diff_stats: String,
-    pub files_changed: u32,
-    pub insertions: u32,
-    pub deletions: u32,
-}
-
 pub fn save_png_with_metadata<P: AsRef<Path>>(
     image: &DynamicImage,
     path: P,
-    metadata: CommitMetadata,
+    metadata: &CommitMetadata,
 ) -> Result {
     let file = File::create(path.as_ref())?;
     let writer = BufWriter::new(file);
@@ -35,21 +22,33 @@ pub fn save_png_with_metadata<P: AsRef<Path>>(
     encoder.set_depth(png::BitDepth::Eight);
 
     // Add metadata as tEXt chunks
-    encoder.add_text_chunk("lolcommit:sha".to_string(), metadata.commit_sha)?;
-    encoder.add_text_chunk("lolcommit:message".to_string(), metadata.commit_message)?;
-    encoder.add_text_chunk("lolcommit:type".to_string(), metadata.commit_type)?;
+    encoder.add_text_chunk("lolcommit:sha".to_string(), metadata.sha.clone())?;
+    encoder.add_text_chunk("lolcommit:message".to_string(), metadata.message.clone())?;
+    encoder.add_text_chunk("lolcommit:type".to_string(), metadata.commit_type.clone())?;
 
-    if !metadata.commit_scope.is_empty() {
-        encoder.add_text_chunk("lolcommit:scope".to_string(), metadata.commit_scope)?;
+    if !metadata.scope.is_empty() {
+        encoder.add_text_chunk("lolcommit:scope".to_string(), metadata.scope.clone())?;
     }
 
-    encoder.add_text_chunk("lolcommit:timestamp".to_string(), metadata.timestamp)?;
-    encoder.add_text_chunk("lolcommit:repo".to_string(), metadata.repo_name)?;
-    encoder.add_text_chunk("lolcommit:branch".to_string(), metadata.branch_name)?;
-    encoder.add_text_chunk("lolcommit:diff".to_string(), metadata.diff_stats)?;
-    encoder.add_text_chunk("lolcommit:files_changed".to_string(), metadata.files_changed.to_string())?;
-    encoder.add_text_chunk("lolcommit:insertions".to_string(), metadata.insertions.to_string())?;
-    encoder.add_text_chunk("lolcommit:deletions".to_string(), metadata.deletions.to_string())?;
+    encoder.add_text_chunk(
+        "lolcommit:timestamp".to_string(),
+        metadata.timestamp.clone(),
+    )?;
+    encoder.add_text_chunk("lolcommit:repo".to_string(), metadata.repo_name.clone())?;
+    encoder.add_text_chunk("lolcommit:branch".to_string(), metadata.branch_name.clone())?;
+    encoder.add_text_chunk("lolcommit:diff".to_string(), metadata.diff_stats_string())?;
+    encoder.add_text_chunk(
+        "lolcommit:files_changed".to_string(),
+        metadata.stats.files_changed.to_string(),
+    )?;
+    encoder.add_text_chunk(
+        "lolcommit:insertions".to_string(),
+        metadata.stats.insertions.to_string(),
+    )?;
+    encoder.add_text_chunk(
+        "lolcommit:deletions".to_string(),
+        metadata.stats.deletions.to_string(),
+    )?;
 
     let mut writer = encoder.write_header()?;
     writer.write_image_data(&rgb_image)?;
@@ -66,66 +65,59 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
     let info = reader.info();
     let text_chunks = &info.uncompressed_latin1_text;
 
-    let mut metadata = CommitMetadata {
-        commit_sha: String::new(),
-        commit_message: String::new(),
-        commit_type: String::new(),
-        commit_scope: String::new(),
-        timestamp: String::new(),
-        repo_name: String::new(),
-        branch_name: String::new(),
-        diff_stats: String::new(),
-        files_changed: 0,
-        insertions: 0,
-        deletions: 0,
-    };
+    let mut sha = String::new();
+    let mut message = String::new();
+    let mut commit_type = String::new();
+    let mut scope = String::new();
+    let mut timestamp = String::new();
+    let mut repo_name = String::new();
+    let mut branch_name = String::new();
+    let mut files_changed = 0;
+    let mut insertions = 0;
+    let mut deletions = 0;
 
     let mut found_any = false;
 
     for chunk in text_chunks {
         match chunk.keyword.as_str() {
             "lolcommit:sha" => {
-                metadata.commit_sha = chunk.text.clone();
+                sha = chunk.text.clone();
                 found_any = true;
             }
             "lolcommit:message" => {
-                metadata.commit_message = chunk.text.clone();
+                message = chunk.text.clone();
                 found_any = true;
             }
             "lolcommit:type" => {
-                metadata.commit_type = chunk.text.clone();
+                commit_type = chunk.text.clone();
                 found_any = true;
             }
             "lolcommit:scope" => {
-                metadata.commit_scope = chunk.text.clone();
+                scope = chunk.text.clone();
                 found_any = true;
             }
             "lolcommit:timestamp" => {
-                metadata.timestamp = chunk.text.clone();
+                timestamp = chunk.text.clone();
                 found_any = true;
             }
             "lolcommit:repo" => {
-                metadata.repo_name = chunk.text.clone();
+                repo_name = chunk.text.clone();
                 found_any = true;
             }
             "lolcommit:branch" => {
-                metadata.branch_name = chunk.text.clone();
-                found_any = true;
-            }
-            "lolcommit:diff" => {
-                metadata.diff_stats = chunk.text.clone();
+                branch_name = chunk.text.clone();
                 found_any = true;
             }
             "lolcommit:files_changed" => {
-                metadata.files_changed = chunk.text.parse().unwrap_or(0);
+                files_changed = chunk.text.parse().unwrap_or(0);
                 found_any = true;
             }
             "lolcommit:insertions" => {
-                metadata.insertions = chunk.text.parse().unwrap_or(0);
+                insertions = chunk.text.parse().unwrap_or(0);
                 found_any = true;
             }
             "lolcommit:deletions" => {
-                metadata.deletions = chunk.text.parse().unwrap_or(0);
+                deletions = chunk.text.parse().unwrap_or(0);
                 found_any = true;
             }
             _ => {}
@@ -133,8 +125,86 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
     }
 
     if found_any {
-        Ok(Some(metadata))
+        Ok(Some(CommitMetadata {
+            path: std::path::PathBuf::new(), // Will be set by caller
+            sha,
+            message,
+            commit_type,
+            scope,
+            timestamp,
+            repo_name,
+            branch_name,
+            stats: DiffStats {
+                files_changed,
+                insertions,
+                deletions,
+            },
+        }))
     } else {
         Ok(None)
     }
+}
+
+pub fn parse_image_file(path: &Path) -> Option<CommitMetadata> {
+    let filename = path.file_name()?.to_str()?;
+
+    // Try to read metadata from PNG file first
+    if let Ok(Some(mut metadata)) = read_png_metadata(path) {
+        tracing::debug!(filename, "Read metadata from PNG");
+        metadata.path = path.to_path_buf();
+        return Some(metadata);
+    }
+
+    // Fallback: parse filename for old images without metadata
+    // Expected format: {repo_name}-{timestamp}-{commit_sha}.png
+    // timestamp format: %Y%m%d-%H%M%S
+    tracing::debug!(filename, "Falling back to filename parsing");
+    let name = filename.strip_suffix(".png")?;
+    let parts: Vec<&str> = name.rsplitn(3, '-').collect();
+
+    if parts.len() != 3 {
+        return None;
+    }
+
+    let sha = parts[0].to_string();
+    let time_part = parts[1];
+    let repo_name = parts[2].to_string();
+
+    // Parse timestamp for display
+    let timestamp =
+        parse_timestamp(time_part).unwrap_or_else(|| format!("{}-{}", repo_name, time_part));
+
+    Some(CommitMetadata {
+        path: path.to_path_buf(),
+        sha,
+        message: String::new(),
+        commit_type: String::new(),
+        scope: String::new(),
+        timestamp,
+        repo_name,
+        branch_name: String::new(),
+        stats: DiffStats {
+            files_changed: 0,
+            insertions: 0,
+            deletions: 0,
+        },
+    })
+}
+
+fn parse_timestamp(timestamp: &str) -> Option<String> {
+    // Format: YYYYMMDD-HHMMSS
+    if timestamp.len() != 15 {
+        return None;
+    }
+
+    let year = timestamp.get(0..4)?;
+    let month = timestamp.get(4..6)?;
+    let day = timestamp.get(6..8)?;
+    let hour = timestamp.get(9..11)?;
+    let minute = timestamp.get(11..13)?;
+    let second = timestamp.get(13..15)?;
+
+    let datetime_str = format!("{}-{}-{} {}:{}:{}", year, month, day, hour, minute, second);
+
+    Some(datetime_str)
 }
