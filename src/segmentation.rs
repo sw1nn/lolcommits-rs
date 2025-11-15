@@ -9,7 +9,7 @@ const MODEL_URL: &str = "https://github.com/danielgatis/rembg/releases/download/
 const MODEL_FILENAME: &str = "u2net.onnx";
 
 pub fn get_model_path() -> Result<PathBuf> {
-    let xdg_dirs = BaseDirectories::with_prefix("lolcommits-rs").map_err(|e| {
+    let xdg_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
         crate::error::LolcommitsError::ConfigError {
             message: format!("Failed to get XDG base directories: {}", e),
         }
@@ -71,8 +71,8 @@ mod tests {
         let path = result.unwrap();
         let path_str = path.to_string_lossy();
 
-        // Should contain "cache" and "lolcommits-rs" in the path
+        // Should contain "cache" and "lolcommits" in the path
         assert!(path_str.contains("cache"));
-        assert!(path_str.contains("lolcommits-rs"));
+        assert!(path_str.contains("lolcommits"));
     }
 }

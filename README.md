@@ -1,17 +1,17 @@
-# lolcommits-rs
+# lolcommits
 
 A Rust implementation of [lolcommits](https://lolcommits.github.io/) - automatically capture webcam snapshots when you make git commits!
 
 ## Overview
 
-`lolcommits-rs` integrates with your git workflow to take a photo using your webcam every time you commit. Each snapshot is annotated with commit information including:
+`lolcommits` integrates with your git workflow to take a photo using your webcam every time you commit. Each snapshot is annotated with commit information including:
 
 - Commit message and SHA
 - Repository name
 - Diff statistics
 - Conventional commit type badge (feat, fix, chore, etc.)
 
-The tool uses OpenCV for face detection and segmentation to replace the background, creating fun and personalized commit snapshots that are stored locally in `~/.local/share/lolcommits-rs/`.
+The tool uses OpenCV for face detection and segmentation to replace the background, creating fun and personalized commit snapshots that are stored locally in `~/.local/share/lolcommits/`.
 
 ## Features
 
@@ -43,7 +43,7 @@ chmod +x .git/hooks/post-commit
 
 ## Configuration
 
-Configuration is stored in `~/.config/lolcommits-rs/config.toml`. The tool will automatically create a default configuration file on first run if none exists.
+Configuration is stored in `~/.config/lolcommits/config.toml`. The tool will automatically create a default configuration file on first run if none exists.
 
 ### Configuration Options
 
@@ -64,7 +64,7 @@ default_font_name = "monospace"
 # - An absolute path (starts with /): "/path/to/your/background.png"
 # - A basename (no /): "mybackground" searches for mybackground.png in XDG data dirs
 # Default: "background" (searches for background.png in standard locations)
-background_path = "/home/user/.local/share/lolcommits-rs/background.png"
+background_path = "/home/user/.local/share/lolcommits/background.png"
 
 # Camera device index (usually 0 for built-in webcam)
 camera_index = 0

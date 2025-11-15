@@ -1,8 +1,8 @@
-# systemd-tmpfiles configuration for lolcommits-rs
+# systemd-tmpfiles configuration for lolcommits
 #
 # This file can be placed in one of the following locations:
-#   - ~/.config/user-tmpfiles.d/lolcommits-rs.conf  (user-specific)
-#   - /etc/tmpfiles.d/lolcommits-rs.conf            (system-wide)
+#   - ~/.config/user-tmpfiles.d/lolcommits.conf  (user-specific)
+#   - /etc/tmpfiles.d/lolcommits.conf            (system-wide)
 #
 # After placing the file, run:
 #   systemd-tmpfiles --user --clean  (for user installation)
@@ -13,11 +13,11 @@
 # Age format: d (days), w (weeks), m (months), y (years)
 #
 # Delete lolcommit images older than 30 days
-e %h/.local/share/lolcommits-rs/*.png - - - 30d -
+e %h/.local/share/lolcommits/*.png - - - 30d -
 
 # Alternative: Delete everything in the directory older than 30 days
-# e %h/.local/share/lolcommits-rs/* - - - 30d -
+# e %h/.local/share/lolcommits/* - - - 30d -
 
 # Alternative: Clean up cache (model) older than 90 days
 # (Not recommended as the model is large and rarely changes)
-# e %h/.cache/lolcommits-rs/* - - - 90d -
+# e %h/.cache/lolcommits/* - - - 90d -

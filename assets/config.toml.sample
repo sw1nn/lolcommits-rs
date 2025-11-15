@@ -1,7 +1,7 @@
-# lolcommits-rs configuration file
+# lolcommits configuration file
 #
-# Place this file at: ~/.config/lolcommits-rs/config.toml
-# (or $XDG_CONFIG_HOME/lolcommits-rs/config.toml)
+# Place this file at: ~/.config/lolcommits/config.toml
+# (or $XDG_CONFIG_HOME/lolcommits/config.toml)
 
 # Font names for different text elements (resolved via fontconfig)
 # All default to "monospace" which uses the system monospace font

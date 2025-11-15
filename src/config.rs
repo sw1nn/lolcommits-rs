@@ -48,7 +48,7 @@ fn default_font_name() -> String {
 
 fn default_background_path() -> String {
     let base_dirs =
-        BaseDirectories::with_prefix("lolcommits-rs").expect("Failed to get XDG base directories");
+        BaseDirectories::with_prefix("lolcommits").expect("Failed to get XDG base directories");
     base_dirs
         .get_data_home()
         .join("background.png")
@@ -130,9 +130,9 @@ impl Config {
 }
 
 impl Config {
-    /// Load configuration from XDG_CONFIG_HOME/lolcommits-rs/config.toml
+    /// Load configuration from XDG_CONFIG_HOME/lolcommits/config.toml
     pub fn load() -> Result<Self> {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs").map_err(|e| {
+        let base_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
             LolcommitsError::ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
             }
@@ -166,9 +166,9 @@ impl Config {
         Ok(config)
     }
 
-    /// Save configuration to XDG_CONFIG_HOME/lolcommits-rs/config.toml
+    /// Save configuration to XDG_CONFIG_HOME/lolcommits/config.toml
     pub fn save(&self) -> Result<()> {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs").map_err(|e| {
+        let base_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
             LolcommitsError::ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
             }
@@ -194,7 +194,7 @@ impl Config {
 
     /// Get the path to the config file
     pub fn config_path() -> Result<PathBuf> {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits-rs").map_err(|e| {
+        let base_dirs = BaseDirectories::with_prefix("lolcommits").map_err(|e| {
             LolcommitsError::ConfigError {
                 message: format!("Failed to get XDG base directories: {}", e),
             }
