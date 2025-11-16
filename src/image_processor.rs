@@ -5,7 +5,7 @@ use crate::segmentation;
 use ab_glyph::{FontRef, PxScale};
 use image::{DynamicImage, Rgba};
 use imageproc::drawing::draw_text_mut;
-use opencv::core::{AlgorithmHint, CV_32F, Mat, Scalar, Size, Vec3b};
+use opencv::core::{CV_32F, Mat, Scalar, Size, Vec3b};
 use opencv::dnn::{DNN_BACKEND_OPENCV, DNN_TARGET_CPU, read_net_from_onnx};
 use opencv::imgproc::{COLOR_BGR2RGB, COLOR_RGB2BGR, INTER_LINEAR, cvt_color, resize};
 use opencv::prelude::*;
@@ -178,7 +178,6 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
         &mut bgr_mat,
         COLOR_RGB2BGR,
         0,
-        AlgorithmHint::ALGO_HINT_DEFAULT,
     )?;
 
     tracing::debug!("After RGB->BGR conversion, mat type: {}", bgr_mat.typ());
@@ -329,7 +328,6 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
         &mut rgb_mat,
         COLOR_BGR2RGB,
         0,
-        AlgorithmHint::ALGO_HINT_DEFAULT,
     )?;
     let rgb_bytes: Vec<u8> = rgb_mat.data_bytes()?.to_vec();
 

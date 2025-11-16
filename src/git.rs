@@ -200,7 +200,7 @@ mod tests {
 
     // Helper function to create a temporary git repository for testing
     fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::with_prefix("lolcommits-test-").unwrap();
         let repo = git2::Repository::init(temp_dir.path()).unwrap();
 
         // Configure user for commits
@@ -248,17 +248,17 @@ mod tests {
     fn test_get_repo_name() {
         let temp_dir = create_test_repo();
 
+        // Capture the expected name before changing directory
+        let expected_name = temp_dir.path().file_name().unwrap().to_str().unwrap().to_string();
+
         // Change to the test repo directory
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
-        // Get the expected name from the actual directory we're in
-        let repo_name = temp_dir.path().file_name().unwrap().to_str().unwrap();
-
         let result = get_repo_name();
         assert!(result.is_ok());
         let name = result.unwrap();
-        assert_eq!(name, repo_name);
+        assert_eq!(name, expected_name);
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
@@ -287,9 +287,15 @@ mod tests {
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
+        // Get the HEAD commit sha
+        let repo = Repository::open(temp_dir.path()).unwrap();
+        let head = repo.head().unwrap();
+        let commit = head.peel_to_commit().unwrap();
+        let sha = commit.id().to_string();
+
         // Should return Ok for HEAD commit with valid stats
-        let result = get_diff_stats("HEAD");
-        assert!(result.is_ok());
+        let result = get_diff_stats(&sha);
+        assert!(result.is_ok(), "get_diff_stats failed: {:?}", result);
         let stats = result.unwrap();
 
         // The second commit added a file, so we should have:
