@@ -12,6 +12,32 @@ use opencv::prelude::*;
 use std::env;
 use std::path::PathBuf;
 
+/// Wrapper around OpenCV's cvt_color to handle API differences between versions
+/// OpenCV 4.10 and earlier use 4 parameters, OpenCV 4.12+ requires 5 parameters
+#[cfg(cvt_color4)]
+fn convert_color<S, D>(src: &S, dst: &mut D, code: i32, dcn: i32) -> opencv::Result<()>
+where
+    S: opencv::core::ToInputArray,
+    D: opencv::core::ToOutputArray,
+{
+    cvt_color(src, dst, code, dcn)
+}
+
+#[cfg(cvt_color5)]
+fn convert_color<S, D>(src: &S, dst: &mut D, code: i32, dcn: i32) -> opencv::Result<()>
+where
+    S: opencv::core::ToInputArray,
+    D: opencv::core::ToOutputArray,
+{
+    cvt_color(
+        src,
+        dst,
+        code,
+        dcn,
+        opencv::imgproc::AlgorithmHint::ALGO_HINT_DEFAULT,
+    )
+}
+
 /// Format a number with k/M suffix for numbers over 999
 /// Examples: 42 -> "42", 1234 -> "1.2k", 1567890 -> "1.6M"
 fn format_stat_number(n: u32) -> String {
@@ -173,12 +199,7 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
 
     // Use OpenCV's cvt_color to properly convert RGB to BGR
     let mut bgr_mat = Mat::default();
-    cvt_color(
-        &rgb_mat,
-        &mut bgr_mat,
-        COLOR_RGB2BGR,
-        0,
-    )?;
+    convert_color(&rgb_mat, &mut bgr_mat, COLOR_RGB2BGR, 0)?;
 
     tracing::debug!("After RGB->BGR conversion, mat type: {}", bgr_mat.typ());
 
@@ -323,12 +344,7 @@ pub fn replace_background(image: DynamicImage, config: &Config) -> Result<Dynami
 
     // Convert BGR back to RGB
     let mut rgb_mat = Mat::default();
-    cvt_color(
-        &bgr_mat,
-        &mut rgb_mat,
-        COLOR_BGR2RGB,
-        0,
-    )?;
+    convert_color(&bgr_mat, &mut rgb_mat, COLOR_BGR2RGB, 0)?;
     let rgb_bytes: Vec<u8> = rgb_mat.data_bytes()?.to_vec();
 
     // Load background image using image crate
@@ -443,9 +459,18 @@ pub fn overlay_chyron(
 
     let info_y = y_start as i32 + 45;
     let info_text = if metadata.scope.is_empty() {
-        format!("{} • {}", metadata.commit_type.to_uppercase(), metadata.repo_name)
+        format!(
+            "{} • {}",
+            metadata.commit_type.to_uppercase(),
+            metadata.repo_name
+        )
     } else {
-        format!("{} • {} • {}", metadata.commit_type.to_uppercase(), metadata.scope, metadata.repo_name)
+        format!(
+            "{} • {} • {}",
+            metadata.commit_type.to_uppercase(),
+            metadata.scope,
+            metadata.repo_name
+        )
     };
     draw_text_mut(
         &mut rgba_image,
@@ -490,7 +515,11 @@ pub fn overlay_chyron(
 
     // Draw SHA on the right side of the title line, left-aligned with stats
     if !metadata.sha.is_empty() {
-        let sha_short = if metadata.sha.len() > 7 { &metadata.sha[..7] } else { &metadata.sha };
+        let sha_short = if metadata.sha.len() > 7 {
+            &metadata.sha[..7]
+        } else {
+            &metadata.sha
+        };
         draw_text_mut(
             &mut rgba_image,
             yellow,
