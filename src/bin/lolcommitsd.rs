@@ -1,6 +1,6 @@
 use clap::Parser;
-use sw1nn_lolcommits_rs::{config, server};
 use std::path::PathBuf;
+use sw1nn_lolcommits_rs::{config, init_tracing, server};
 
 #[derive(Parser, Debug)]
 #[command(name = "lolcommitsd")]
@@ -12,18 +12,13 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
+    init_tracing();
 
     let args = Args::parse();
     let cfg = config::Config::load_from(args.config)?;
     let images_dir = PathBuf::from(&cfg.server.images_dir);
 
-    tracing::info!(path = %images_dir.display(), "Serving images from");
+    tracing::info!(config = ?cfg, "Parsed config");
 
     let app = server::create_router(images_dir);
 
