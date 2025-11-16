@@ -220,11 +220,14 @@ impl GeneralConfig {
 }
 
 impl Config {
-    /// Load configuration from XDG_CONFIG_HOME/lolcommits/config.toml
-    pub fn load() -> Result<Self> {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits")?;
-
-        let config_path = base_dirs.place_config_file("config.toml")?;
+    /// Load configuration from the specified path or XDG_CONFIG_HOME/lolcommits/config.toml
+    pub fn load_from(config_path: Option<PathBuf>) -> Result<Self> {
+        let config_path = if let Some(path) = config_path {
+            path
+        } else {
+            let base_dirs = BaseDirectories::with_prefix("lolcommits")?;
+            base_dirs.place_config_file("config.toml")?
+        };
 
         if !config_path.exists() {
             tracing::info!(path = %config_path.display(), "Config file not found, creating default");
@@ -245,6 +248,11 @@ impl Config {
 
         tracing::debug!(?config, "Config loaded successfully");
         Ok(config)
+    }
+
+    /// Load configuration from XDG_CONFIG_HOME/lolcommits/config.toml
+    pub fn load() -> Result<Self> {
+        Self::load_from(None)
     }
 
     /// Save configuration to XDG_CONFIG_HOME/lolcommits/config.toml

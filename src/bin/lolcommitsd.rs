@@ -1,5 +1,14 @@
+use clap::Parser;
 use sw1nn_lolcommits_rs::{config, server};
 use std::path::PathBuf;
+
+#[derive(Parser, Debug)]
+#[command(name = "lolcommitsd")]
+#[command(about = "Lolcommits server daemon")]
+struct Args {
+    #[arg(long, value_name = "FILE", help = "Path to config file")]
+    config: Option<PathBuf>,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -10,7 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    let cfg = config::Config::load()?;
+    let args = Args::parse();
+    let cfg = config::Config::load_from(args.config)?;
     let images_dir = PathBuf::from(&cfg.server.images_dir);
 
     tracing::info!(path = %images_dir.display(), "Serving images from");

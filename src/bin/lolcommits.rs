@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::path::PathBuf;
 
 use sw1nn_lolcommits_rs::{capture, config, error::Result};
 
@@ -17,6 +18,9 @@ struct Args {
 
     #[arg(long, action = clap::ArgAction::SetTrue, help = "Disable chyron overlay (overrides config)")]
     no_chyron: bool,
+
+    #[arg(long, value_name = "FILE", help = "Path to config file")]
+    config: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -30,7 +34,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     // Load configuration
-    let config = config::Config::load()?;
+    let config = config::Config::load_from(args.config)?;
     tracing::debug!(?config, "Loaded configuration");
 
     let capture_args = capture::CaptureArgs {
