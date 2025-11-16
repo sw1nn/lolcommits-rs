@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.5.0 - 2025-11-16
+#### Features
+- (**config**) add configurable bind address and port for server - (7da829b) - Neale Swinnerton
+
+- - -
+
 ## v0.4.0 - 2025-11-16
 #### Features
 - (**config**) implement hierarchical config file search - (6be855a) - Neale Swinnerton
