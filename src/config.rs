@@ -220,13 +220,27 @@ impl GeneralConfig {
 }
 
 impl Config {
-    /// Load configuration from the specified path or XDG_CONFIG_HOME/lolcommits/config.toml
+    /// Load configuration from the specified path, or search in hierarchical order:
+    /// 1. /etc/sw1nn/lolcommits/config.toml (system-wide)
+    /// 2. XDG_CONFIG_HOME/lolcommits/config.toml (user-specific)
     pub fn load_from(config_path: Option<PathBuf>) -> Result<Self> {
         let config_path = if let Some(path) = config_path {
+            // Use explicit path if provided
             path
         } else {
-            let base_dirs = BaseDirectories::with_prefix("lolcommits")?;
-            base_dirs.place_config_file("config.toml")?
+            // Search in hierarchical order
+            let system_config = PathBuf::from("/etc/sw1nn/lolcommits/config.toml");
+
+            if system_config.exists() {
+                tracing::debug!(path = %system_config.display(), "Using system config");
+                system_config
+            } else {
+                // Fall back to user config
+                let base_dirs = BaseDirectories::with_prefix("lolcommits")?;
+                let user_config = base_dirs.place_config_file("config.toml")?;
+                tracing::debug!(path = %user_config.display(), "Using user config");
+                user_config
+            }
         };
 
         if !config_path.exists() {
@@ -250,7 +264,7 @@ impl Config {
         Ok(config)
     }
 
-    /// Load configuration from XDG_CONFIG_HOME/lolcommits/config.toml
+    /// Load configuration using hierarchical search
     pub fn load() -> Result<Self> {
         Self::load_from(None)
     }
