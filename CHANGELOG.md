@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.3.0 - 2025-11-16
+#### Build system
+- (**nix**) pin OpenCV to 4.10.0 with compatibility fixes - (59eac8b) - Neale Swinnerton
+
+- - -
+
 ## v0.2.1 - 2025-11-15
 #### Bug Fixes
 - (**packaging**) disable LTO to resolve OpenCV linking errors - (51b7f63) - Neale Swinnerton
