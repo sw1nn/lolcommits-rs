@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.6.0 - 2025-11-16
+#### Features
+- (**build**) add automatic OpenCV version detection for cvt_color API - (e4bcbdf) - Neale Swinnerton
+- (**logging**) add journald support for systemd service deployment - (e055e76) - Neale Swinnerton
+#### Miscellaneous Chores
+- (**packaging**) add build-chroot.sh for clean Arch Linux builds - (dc31ce0) - Neale Swinnerton
+
+- - -
+
 ## v0.5.0 - 2025-11-16
 #### Features
 - (**config**) add configurable bind address and port for server - (7da829b) - Neale Swinnerton
