@@ -76,6 +76,12 @@ pub struct ServerConfig {
 
     #[serde(default = "default_models_dir")]
     pub models_dir: String,
+
+    #[serde(default = "default_bind_address")]
+    pub bind_address: String,
+
+    #[serde(default = "default_bind_port")]
+    pub bind_port: u16,
 }
 
 fn default_font_name() -> String {
@@ -140,6 +146,14 @@ fn default_models_dir() -> String {
     "/var/lib/lolcommits/models".to_string()
 }
 
+fn default_bind_address() -> String {
+    "0.0.0.0".to_string()
+}
+
+fn default_bind_port() -> u16 {
+    3000
+}
+
 impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
@@ -175,6 +189,8 @@ impl Default for ServerConfig {
             gallery_title: default_gallery_title(),
             images_dir: default_images_dir(),
             models_dir: default_models_dir(),
+            bind_address: default_bind_address(),
+            bind_port: default_bind_port(),
         }
     }
 }
@@ -407,5 +423,49 @@ mod tests {
         assert_eq!(config.general.default_font_name, "Liberation Sans");
         assert_eq!(config.general.message_font_name, None);
         assert_eq!(config.general.get_message_font_name(), "Liberation Sans");
+    }
+
+    #[test]
+    fn test_default_bind_address_and_port() {
+        let config = Config::default();
+        assert_eq!(config.server.bind_address, "0.0.0.0");
+        assert_eq!(config.server.bind_port, 3000);
+    }
+
+    #[test]
+    fn test_custom_bind_address_and_port() {
+        let toml_str = r#"
+            [general]
+
+            [client]
+
+            [server]
+            bind_address = "0.0.0.0"
+            bind_port = 8080
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.server.bind_address, "0.0.0.0");
+        assert_eq!(config.server.bind_port, 8080);
+    }
+
+    #[test]
+    fn test_bind_config_serialization() {
+        let config = Config {
+            server: ServerConfig {
+                bind_address: "0.0.0.0".to_string(),
+                bind_port: 8080,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let toml_str = toml::to_string(&config).unwrap();
+        assert!(toml_str.contains("bind_address = \"0.0.0.0\""));
+        assert!(toml_str.contains("bind_port = 8080"));
+
+        let parsed: Config = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.server.bind_address, "0.0.0.0");
+        assert_eq!(parsed.server.bind_port, 8080);
     }
 }

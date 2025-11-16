@@ -27,8 +27,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = server::create_router(images_dir);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
-    tracing::info!("Server running on http://127.0.0.1:3000");
+    let bind_addr = format!("{}:{}", cfg.server.bind_address, cfg.server.bind_port);
+    let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
+    tracing::info!(address = %bind_addr, "Server running");
 
     axum::serve(listener, app).await?;
 
