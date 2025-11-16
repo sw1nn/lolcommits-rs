@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.4.0 - 2025-11-16
+#### Features
+- (**config**) implement hierarchical config file search - (6be855a) - Neale Swinnerton
+- (**config**) add --config flag to specify custom config file - (6d01fbd) - Neale Swinnerton
+
+- - -
+
 ## v0.3.0 - 2025-11-16
 #### Build system
 - (**nix**) pin OpenCV to 4.10.0 with compatibility fixes - (59eac8b) - Neale Swinnerton
