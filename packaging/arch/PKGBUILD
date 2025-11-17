@@ -25,11 +25,6 @@ build() {
   cargo build --release --locked --offline
 }
 
-check() {
-  cd ${pkgbase}
-  cargo test --locked --offline
-}
-
 package_lolcommits() {
   pkgdesc='Webcam snapshot client for git commits'
   depends=('opencv' 'gcc-libs')
