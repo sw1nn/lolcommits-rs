@@ -9,7 +9,7 @@ arch=('x86_64')
 url=https://git.sw1nn.net/r/lolcommits-rs.git/
 license=('MIT')
 depends=('opencv' 'fontconfig')
-makedepends=('rust' 'clang' 'pkg-config')
+makedepends=('rust' 'clang' 'pkg-config' 'llvm-libs')
 options=('!lto')
 source=("${pkgbase}::git+ssh://git.sw1nn.net/sw1nn/lolcommits-rs.git#tag=v${pkgver}")
 sha256sums=('SKIP')
