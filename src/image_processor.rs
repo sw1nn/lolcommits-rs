@@ -34,7 +34,7 @@ where
         dst,
         code,
         dcn,
-        opencv::imgproc::AlgorithmHint::ALGO_HINT_DEFAULT,
+        opencv::core::AlgorithmHint::ALGO_HINT_DEFAULT,
     )
 }
 
