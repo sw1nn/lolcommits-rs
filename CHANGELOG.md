@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.6.3 - 2025-11-17
+#### Bug Fixes
+- (**pkg**) add llvm to PKGBUILD - (165eef5) - Neale Swinnerton
+
+- - -
+
 ## v0.6.2 - 2025-11-17
 #### Bug Fixes
 - (**pkg**) add llvm-libs to PKGBUILD - (882e853) - Neale Swinnerton
