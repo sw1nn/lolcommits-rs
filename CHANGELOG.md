@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.2.0 - 2025-11-18
+#### Features
+- (**pkg**) use sw1nn-makepkg-chroot - (2ec6450) - Neale Swinnerton
+
+- - -
+
 ## v1.1.1 - 2025-11-18
 #### Tests
 - isolate XDG directory tests with temp-env - (e188515) - Neale Swinnerton
