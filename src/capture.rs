@@ -3,7 +3,6 @@ use serde::Serialize;
 use std::io::Cursor;
 
 pub struct CaptureArgs {
-    pub message: String,
     pub sha: String,
     pub chyron: bool,
     pub no_chyron: bool,
@@ -25,8 +24,6 @@ struct UploadMetadata {
 }
 
 pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Result<()> {
-    tracing::info!(message = %args.message, sha = %args.sha, "Starting lolcommits");
-
     // Override chyron setting if CLI flags are provided
     if args.chyron {
         config.general.enable_chyron = true;
@@ -36,10 +33,15 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
         tracing::debug!("Chyron disabled via --no-chyron flag");
     }
 
-    // Gather git information
-    let repo_name = git::get_repo_name()?;
-    let branch_name = git::get_branch_name()?;
+    let repo = git::open_repo()?;
+
+    let message = git::get_commit_message(&repo, &args.sha)?;
+    tracing::info!(message = %message, sha = %args.sha, "Starting lolcommits");
+
+    let repo_name = git::get_repo_name(&repo)?;
+    let branch_name = git::get_branch_name(&repo)?;
     let stats = git::get_diff_stats(&args.sha)?;
+
     tracing::info!(
         repo_name = %repo_name,
         branch = %branch_name,
@@ -54,8 +56,8 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
     tracing::info!("Captured image from webcam");
 
     // Parse commit message
-    let commit_type = git::parse_commit_type(&args.message);
-    let first_line = args.message.lines().next().unwrap_or(&args.message);
+    let commit_type = git::parse_commit_type(&message);
+    let first_line = message.lines().next().unwrap_or(&message);
     let message_without_prefix = git::strip_commit_prefix(first_line);
     let scope = git::parse_commit_scope(first_line);
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -107,8 +109,7 @@ fn upload_to_server(
     let form = reqwest::blocking::multipart::Form::new()
         .part(
             "metadata",
-            reqwest::blocking::multipart::Part::text(metadata_json)
-                .mime_str("application/json")?,
+            reqwest::blocking::multipart::Part::text(metadata_json).mime_str("application/json")?,
         )
         .part(
             "image",
@@ -117,24 +118,22 @@ fn upload_to_server(
                 .mime_str("image/png")?,
         );
 
-    let response = client
-        .post(&url)
-        .multipart(form)
-        .send()
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to connect to server");
-            std::io::Error::new(
-                std::io::ErrorKind::ConnectionRefused,
-                format!("Failed to connect to lolcommitsd at {}: {}", url, e),
-            )
-        })?;
+    let response = client.post(&url).multipart(form).send().map_err(|e| {
+        tracing::error!(error = %e, "Failed to connect to server");
+        std::io::Error::new(
+            std::io::ErrorKind::ConnectionRefused,
+            format!("Failed to connect to lolcommitsd at {}: {}", url, e),
+        )
+    })?;
 
     if response.status() == reqwest::StatusCode::ACCEPTED {
         tracing::info!("Upload accepted, server processing in background");
         Ok(())
     } else {
         let status = response.status();
-        let error_text = response.text().unwrap_or_else(|_| "Unknown error".to_string());
+        let error_text = response
+            .text()
+            .unwrap_or_else(|_| "Unknown error".to_string());
         tracing::error!(status = %status, error = %error_text, "Upload failed");
         Err(std::io::Error::new(
             std::io::ErrorKind::Other,

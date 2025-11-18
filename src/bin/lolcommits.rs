@@ -7,9 +7,6 @@ use sw1nn_lolcommits_rs::{capture, config, error::Result};
 #[command(name = "lolcommits")]
 #[command(about = "Take a snapshot with your webcam when you commit")]
 struct Args {
-    #[arg(help = "The commit message")]
-    message: String,
-
     #[arg(help = "The commit SHA")]
     sha: String,
 
@@ -38,7 +35,6 @@ fn main() -> Result<()> {
     tracing::debug!(?config, "Loaded configuration");
 
     let capture_args = capture::CaptureArgs {
-        message: args.message,
         sha: args.sha,
         chyron: args.chyron,
         no_chyron: args.no_chyron,

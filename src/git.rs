@@ -75,9 +75,7 @@ impl CommitMetadata {
     }
 }
 
-pub fn get_repo_name() -> Result<String> {
-    let repo = open_repo()?;
-
+pub fn get_repo_name(repo: &Repository) -> Result<String> {
     let path = repo.path().parent().ok_or(NoRepoName)?;
     let name = path
         .file_name()
@@ -132,8 +130,7 @@ pub fn get_diff_stats(sha: &str) -> Result<DiffStats> {
     })
 }
 
-pub fn get_branch_name() -> Result<String> {
-    let repo = open_repo()?;
+pub fn get_branch_name(repo: &Repository) -> Result<String> {
     let head = repo.head()?;
 
     if let Some(branch_name) = head.shorthand() {
@@ -141,6 +138,17 @@ pub fn get_branch_name() -> Result<String> {
     } else {
         Ok("HEAD".to_string())
     }
+}
+
+/// Get the commit message for a given SHA
+pub fn get_commit_message(repo: &Repository, sha: &str) -> Result<String> {
+    let oid = git2::Oid::from_str(sha)?;
+    let commit = repo.find_commit(oid)?;
+
+    commit
+        .message()
+        .map(|s| s.to_string())
+        .ok_or(GitCommandFailed)
 }
 
 /// Parse the commit type from a conventional commit message
@@ -187,7 +195,7 @@ pub fn parse_commit_scope(message: &str) -> String {
     String::new()
 }
 
-fn open_repo() -> Result<Repository> {
+pub fn open_repo() -> Result<Repository> {
     let current_dir = env::current_dir()?;
     Repository::discover(current_dir).map_err(|_| NotInGitRepo)
 }
@@ -255,7 +263,8 @@ mod tests {
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
-        let result = get_repo_name();
+        let repo = open_repo().unwrap();
+        let result = get_repo_name(&repo);
         assert!(result.is_ok());
         let name = result.unwrap();
         assert_eq!(name, expected_name);
