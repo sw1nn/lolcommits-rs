@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.3.1 - 2025-11-18
+#### Miscellaneous Chores
+- (**version**) v1.3.0 - (c407a19) - Neale Swinnerton
+
+- - -
+
 ## v1.3.0 - 2025-11-18
 #### Miscellaneous Chores
 - (**pkg**) use sudo for sw1nn-makepkg-chroot - (66291d7) - Neale Swinnerton
