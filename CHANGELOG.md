@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.1.0 - 2025-11-18
+#### Features
+- (**build**) add SSH agent forwarding to chroot builds - (ec4a93f) - Neale Swinnerton
+#### Refactoring
+- (**git**) use revparse for SHA resolution - (fae513f) - Neale Swinnerton
+#### Miscellaneous Chores
+- (**pkg**) ignore build .log file - (7bf621b) - Neale Swinnerton
+
+- - -
+
 ## v1.0.0 - 2025-11-18
 #### Refactoring
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**cli**) accept only SHA, retrieve message from git - (25cdd2f) - Neale Swinnerton
