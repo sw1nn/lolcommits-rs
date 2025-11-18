@@ -645,12 +645,82 @@ mod tests {
 
     #[test]
     fn test_resolve_background_path_relative() {
-        // Test relative path (basename search)
-        // This will likely fail unless we have a background in XDG dirs,
-        // but it tests the code path
-        let result = resolve_background_path("nonexistent_background_12345");
-        // We expect this to fail since the background doesn't exist
-        assert!(result.is_err());
+        temp_env::with_vars(
+            [
+                ("XDG_DATA_HOME", None::<&str>),
+                ("XDG_DATA_DIRS", None::<&str>),
+                ("HOME", None::<&str>),
+            ],
+            || {
+                let result = resolve_background_path("nonexistent_background_12345");
+                assert!(result.is_err());
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_background_path_with_xdg_data_home() {
+        use std::fs;
+
+        let temp_dir = std::env::temp_dir();
+        let test_data_home = temp_dir.join("test_xdg_data_home");
+        fs::create_dir_all(&test_data_home).unwrap();
+
+        let bg_file = test_data_home.join("test_bg.png");
+        let mut file = fs::File::create(&bg_file).unwrap();
+        std::io::Write::write_all(&mut file, b"fake png").unwrap();
+
+        temp_env::with_vars(
+            [
+                ("XDG_DATA_HOME", Some(test_data_home.to_str().unwrap())),
+                ("XDG_DATA_DIRS", None::<&str>),
+            ],
+            || {
+                let result = resolve_background_path("test_bg");
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), bg_file);
+            },
+        );
+
+        fs::remove_dir_all(&test_data_home).ok();
+    }
+
+    #[test]
+    fn test_resolve_background_path_with_xdg_data_dirs() {
+        use std::fs;
+
+        let temp_dir = std::env::temp_dir();
+        let test_data_dir1 = temp_dir.join("test_xdg_data_dir1");
+        let test_data_dir2 = temp_dir.join("test_xdg_data_dir2");
+        fs::create_dir_all(&test_data_dir1).unwrap();
+        fs::create_dir_all(&test_data_dir2).unwrap();
+
+        let bg_file = test_data_dir2.join("backgrounds").join("test_bg2.png");
+        fs::create_dir_all(bg_file.parent().unwrap()).unwrap();
+        let mut file = fs::File::create(&bg_file).unwrap();
+        std::io::Write::write_all(&mut file, b"fake png").unwrap();
+
+        let data_dirs = format!(
+            "{}:{}",
+            test_data_dir1.to_str().unwrap(),
+            test_data_dir2.to_str().unwrap()
+        );
+
+        temp_env::with_vars(
+            [
+                ("XDG_DATA_HOME", Some(temp_dir.join("nonexistent").to_str().unwrap())),
+                ("XDG_DATA_DIRS", Some(data_dirs.as_str())),
+                ("HOME", None::<&str>),
+            ],
+            || {
+                let result = resolve_background_path("test_bg2");
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), bg_file);
+            },
+        );
+
+        fs::remove_dir_all(&test_data_dir1).ok();
+        fs::remove_dir_all(&test_data_dir2).ok();
     }
 
     #[test]
