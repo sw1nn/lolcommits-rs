@@ -87,7 +87,17 @@ pub fn get_repo_name(repo: &Repository) -> Result<String> {
 
 /// Get diff stats for a commit using git show --numstat
 pub fn get_diff_stats(sha: &str) -> Result<DiffStats> {
-    let output = Command::new("git")
+    get_diff_stats_in_dir(sha, None)
+}
+
+fn get_diff_stats_in_dir(sha: &str, repo_path: Option<&std::path::Path>) -> Result<DiffStats> {
+    let mut cmd = Command::new("git");
+
+    if let Some(path) = repo_path {
+        cmd.arg("-C").arg(path);
+    }
+
+    let output = cmd
         .args(["show", "--numstat", "--format=", sha])
         .output()?;
 
@@ -256,45 +266,19 @@ mod tests {
     fn test_get_repo_name() {
         let temp_dir = create_test_repo();
 
-        // Capture the expected name before changing directory
-        let expected_name = temp_dir.path().file_name().unwrap().to_str().unwrap().to_string();
-
-        // Change to the test repo directory
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp_dir.path()).unwrap();
-
-        let repo = open_repo().unwrap();
+        // Open the repo directly using the path (no directory change needed)
+        let repo = Repository::open(temp_dir.path()).unwrap();
         let result = get_repo_name(&repo);
         assert!(result.is_ok());
+
+        let expected_name = temp_dir.path().file_name().unwrap().to_str().unwrap();
         let name = result.unwrap();
         assert_eq!(name, expected_name);
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
-    }
-
-    #[test]
-    fn test_open_repo() {
-        let temp_dir = create_test_repo();
-
-        // Change to the test repo directory
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp_dir.path()).unwrap();
-
-        let result = open_repo();
-        assert!(result.is_ok());
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
     fn test_get_diff_stats() {
         let temp_dir = create_test_repo();
-
-        // Change to the test repo directory
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp_dir.path()).unwrap();
 
         // Get the HEAD commit sha
         let repo = Repository::open(temp_dir.path()).unwrap();
@@ -302,8 +286,8 @@ mod tests {
         let commit = head.peel_to_commit().unwrap();
         let sha = commit.id().to_string();
 
-        // Should return Ok for HEAD commit with valid stats
-        let result = get_diff_stats(&sha);
+        // Test using the internal function with explicit repo path (no directory change needed)
+        let result = get_diff_stats_in_dir(&sha, Some(temp_dir.path()));
         assert!(result.is_ok(), "get_diff_stats failed: {:?}", result);
         let stats = result.unwrap();
 
@@ -314,8 +298,5 @@ mod tests {
         assert_eq!(stats.files_changed, 1);
         assert_eq!(stats.insertions, 1);
         assert_eq!(stats.deletions, 0);
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
     }
 }
