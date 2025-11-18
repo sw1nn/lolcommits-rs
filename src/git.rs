@@ -140,10 +140,10 @@ pub fn get_branch_name(repo: &Repository) -> Result<String> {
     }
 }
 
-/// Get the commit message for a given SHA
+/// Get the commit message for a given SHA (supports both short and long SHAs)
 pub fn get_commit_message(repo: &Repository, sha: &str) -> Result<String> {
-    let oid = git2::Oid::from_str(sha)?;
-    let commit = repo.find_commit(oid)?;
+    let obj = repo.revparse_single(sha)?;
+    let commit = repo.find_commit(obj.id())?;
 
     commit
         .message()
