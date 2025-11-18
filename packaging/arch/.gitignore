@@ -3,3 +3,4 @@ pkg/
 lolcommits/
 *.tar.zst
 *.tar.zst.sig
+*.log
