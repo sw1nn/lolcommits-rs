@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.1.1 - 2025-11-18
+#### Tests
+- isolate XDG directory tests with temp-env - (e188515) - Neale Swinnerton
+#### Refactoring
+- (**test**) eliminate directory-changing in git tests - (5b0aed5) - Neale Swinnerton
+
+- - -
+
 ## v1.1.0 - 2025-11-18
 #### Features
 - (**build**) add SSH agent forwarding to chroot builds - (ec4a93f) - Neale Swinnerton
