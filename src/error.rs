@@ -82,6 +82,9 @@ pub enum Error {
     CameraInvalidDevicePath {
         path: PathBuf,
     },
+    CameraBusy {
+        device: String,
+    },
 }
 
 impl std::fmt::Display for Error {

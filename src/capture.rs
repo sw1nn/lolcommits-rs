@@ -1,4 +1,4 @@
-use crate::{camera, config, error::Result, git};
+use crate::{camera, config, error::{Error, Result}, git};
 use serde::Serialize;
 use std::io::Cursor;
 
@@ -52,8 +52,20 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
     );
 
     // Capture image from webcam
-    let image = camera::capture_image(&config.client.camera_device)?;
-    tracing::info!("Captured image from webcam");
+    let image = match camera::capture_image(&config.client.camera_device) {
+        Ok(img) => {
+            tracing::info!("Captured image from webcam");
+            img
+        }
+        Err(Error::CameraBusy { device }) => {
+            tracing::warn!(
+                device,
+                "Camera is currently in use, skipping lolcommit capture"
+            );
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    };
 
     // Parse commit message
     let commit_type = git::parse_commit_type(&message);

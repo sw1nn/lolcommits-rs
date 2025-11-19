@@ -56,7 +56,18 @@ pub fn capture_image(device: &str) -> Result<DynamicImage> {
     let mut camera = Camera::new(index, requested)?;
 
     tracing::debug!("Opening camera stream");
-    camera.open_stream()?;
+    if let Err(e) = camera.open_stream() {
+        // Check if the error message indicates the device is busy
+        let error_msg = e.to_string().to_lowercase();
+        if error_msg.contains("busy") || error_msg.contains("in use") {
+            tracing::debug!(device, error = %e, "Camera appears to be busy");
+            return Err(Error::CameraBusy {
+                device: device.to_string(),
+            });
+        }
+        // For other errors, propagate as before
+        return Err(e.into());
+    }
 
     tracing::debug!("Capturing frame");
     let frame = camera.frame()?;
