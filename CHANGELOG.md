@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.4.0 - 2025-11-19
+#### Features
+- (**camera**) gracefully handle camera busy state - (021606c) - Neale Swinnerton
+
+- - -
+
 ## v1.3.1 - 2025-11-18
 #### Miscellaneous Chores
 - (**version**) v1.3.0 - (c407a19) - Neale Swinnerton
