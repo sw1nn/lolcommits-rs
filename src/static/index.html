@@ -470,12 +470,18 @@
                     return;
                 }
 
-                // If this is a silent refresh (from SSE), don't change the display
+                // If this is a silent refresh (from SSE), don't change which image is shown
+                // but DO update the current display in case the image at currentIndex changed
                 if (silentRefresh) {
                     // Update the counter to reflect new total
                     updateCounter();
                     // Preload the newest images in the background
                     preloadImages(0, Math.min(3, images.length));
+                    // Re-display the current image to update metadata (timestamp, etc.)
+                    // in case the image at currentIndex is now different
+                    if (currentIndex < images.length) {
+                        displayImage(currentIndex);
+                    }
                     return;
                 }
 
