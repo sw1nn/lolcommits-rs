@@ -5,6 +5,7 @@ use sw1nn_lolcommits_rs::{config, init_tracing, server};
 #[derive(Parser, Debug)]
 #[command(name = "lolcommitsd")]
 #[command(about = "Lolcommits server daemon")]
+#[command(version)]
 struct Args {
     #[arg(long, value_name = "FILE", help = "Path to config file")]
     config: Option<PathBuf>,
