@@ -14,6 +14,8 @@ struct Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_tracing();
 
+    tracing::info!(version = env!("CARGO_PKG_VERSION"), "Starting lolcommitsd");
+
     let args = Args::parse();
     let cfg = config::Config::load_from(args.config)?;
     let images_dir = PathBuf::from(&cfg.server.images_dir);
