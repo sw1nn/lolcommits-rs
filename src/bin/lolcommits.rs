@@ -43,15 +43,21 @@ fn main() -> Result<()> {
         no_chyron: args.no_chyron,
     };
 
-    println!("📸 Capturing lolcommit...");
+    if !tracing::enabled!(tracing::Level::INFO) {
+        println!("📸 Capturing lolcommit...");
+    }
 
     match capture::capture_lolcommit(capture_args, config) {
         Ok(()) => {
-            println!("{} Lolcommit uploaded successfully to {}", "✓".green(), server_url.magenta());
+            if !tracing::enabled!(tracing::Level::INFO) {
+                println!("{} Lolcommit uploaded successfully to {}", "✓".green(), server_url.magenta());
+            }
             Ok(())
         }
         Err(Error::ServerConnectionFailed { url, source }) => {
-            eprintln!("{} Failed to connect to lolcommitsd at {}: {}", "✗".red(), url.magenta(), source.to_string().red());
+            if !tracing::enabled!(tracing::Level::INFO) {
+                eprintln!("{} Failed to connect to lolcommitsd at {}: {}", "✗".red(), url.magenta(), source.to_string().red());
+            }
             Err(Error::ServerConnectionFailed { url, source })
         }
         Err(e) => Err(e),
