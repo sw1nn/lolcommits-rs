@@ -36,6 +36,7 @@ png = "0.18"
 tempfile = "3.23.0"
 async-stream = "0.3"
 futures = "0.3"
+owo-colors = { version = "4.1", features = ["supports-colors"] }
 
 [dev-dependencies]
 temp-env = "0.3"

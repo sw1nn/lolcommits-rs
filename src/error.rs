@@ -85,6 +85,11 @@ pub enum Error {
     CameraBusy {
         device: String,
     },
+
+    ServerConnectionFailed {
+        url: String,
+        source: reqwest::Error,
+    },
 }
 
 impl std::fmt::Display for Error {

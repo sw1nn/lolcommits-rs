@@ -1,7 +1,8 @@
 use clap::Parser;
+use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
-use sw1nn_lolcommits_rs::{capture, config, error::Result};
+use sw1nn_lolcommits_rs::{capture, config, error::{Error, Result}};
 
 #[derive(Parser, Debug)]
 #[command(name = "lolcommits")]
@@ -24,7 +25,7 @@ fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("off")),
         )
         .init();
 
@@ -34,15 +35,25 @@ fn main() -> Result<()> {
     let config = config::Config::load_from(args.config)?;
     tracing::debug!(?config, "Loaded configuration");
 
+    let server_url = config.client.server_url.clone();
+
     let capture_args = capture::CaptureArgs {
         sha: args.sha,
         chyron: args.chyron,
         no_chyron: args.no_chyron,
     };
 
-    capture::capture_lolcommit(capture_args, config)?;
+    println!("📸 Capturing lolcommit...");
 
-    println!("Lolcommit uploaded successfully!");
-
-    Ok(())
+    match capture::capture_lolcommit(capture_args, config) {
+        Ok(()) => {
+            println!("{} Lolcommit uploaded successfully to {}", "✓".green(), server_url.magenta());
+            Ok(())
+        }
+        Err(Error::ServerConnectionFailed { url, source }) => {
+            eprintln!("{} Failed to connect to lolcommitsd at {}: {}", "✗".red(), url.magenta(), source.to_string().red());
+            Err(Error::ServerConnectionFailed { url, source })
+        }
+        Err(e) => Err(e),
+    }
 }

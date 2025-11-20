@@ -132,10 +132,10 @@ fn upload_to_server(
 
     let response = client.post(&url).multipart(form).send().map_err(|e| {
         tracing::error!(error = %e, "Failed to connect to server");
-        std::io::Error::new(
-            std::io::ErrorKind::ConnectionRefused,
-            format!("Failed to connect to lolcommitsd at {}: {}", url, e),
-        )
+        Error::ServerConnectionFailed {
+            url: url.clone(),
+            source: e,
+        }
     })?;
 
     if response.status() == reqwest::StatusCode::ACCEPTED {
