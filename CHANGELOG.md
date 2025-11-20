@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.6.0 - 2025-11-20
+#### Features
+- (**daemon**) output version on startup - (b6df24c) - Neale Swinnerton
+
+- - -
+
 ## v1.5.0 - 2025-11-20
 #### Features
 - (**ui**) add colorful client output with server URL - (c0e2787) - Neale Swinnerton
