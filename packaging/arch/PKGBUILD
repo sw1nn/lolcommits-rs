@@ -30,7 +30,7 @@ package_lolcommits() {
   depends=('opencv' 'gcc-libs')
 
   cd ${pkgbase}
-  install -Dt "$pkgdir"/usr/bin ${CARGO_TARGET_DIR:-target}/release/lolcommits
+  install -Dt "$pkgdir"/usr/bin ${CARGO_TARGET_DIR:-target}/release/lolcommits_upload
 }
 
 package_lolcommits-server() {
