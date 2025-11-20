@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.5.0 - 2025-11-20
+#### Features
+- (**ui**) add colorful client output with server URL - (c0e2787) - Neale Swinnerton
+- (**ui**) add date display for lolcommit images - (a61ae52) - Neale Swinnerton
+#### Bug Fixes
+- (**ui**) suppress colored output when tracing is enabled - (913b2f0) - Neale Swinnerton
+#### Refactoring
+- rename 'sha' to 'revision' throughout codebase - (247be1e) - Neale Swinnerton
+#### Miscellaneous Chores
+- (**direnv**) make direnv pick up stuff from parent - (209f021) - Neale Swinnerton
+
+- - -
+
 ## v1.4.0 - 2025-11-19
 #### Features
 - (**camera**) gracefully handle camera busy state - (021606c) - Neale Swinnerton
