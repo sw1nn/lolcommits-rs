@@ -15,7 +15,7 @@ struct Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_tracing();
 
-    tracing::info!(version = env!("CARGO_PKG_VERSION"), "Starting lolcommitsd");
+    tracing::info!("Starting lolcommitsd({})", env!("CARGO_PKG_VERSION"));
 
     let args = Args::parse();
     let cfg = config::Config::load_from(args.config)?;
