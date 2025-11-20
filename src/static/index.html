@@ -64,6 +64,19 @@
             font-weight: 500;
             margin-bottom: 1.5rem;
             text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .image-date-day {
+            text-align: left;
+        }
+
+        .image-date-time {
+            text-align: right;
         }
 
         .image-wrapper {
@@ -221,7 +234,6 @@
             font-size: 0.95rem;
             font-weight: 500;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-            display: inline-block;
         }
 
         .new-images-badge {
@@ -404,7 +416,10 @@
                 ←
             </button>
 
-            <div class="image-date" id="imageDate"></div>
+            <div class="image-date">
+                <span class="image-date-day" id="imageDateDay"></span>
+                <span class="image-date-time" id="imageDateTime"></span>
+            </div>
 
             <div class="image-wrapper">
                 <img id="currentImage" alt="Lolcommit">
@@ -420,8 +435,9 @@
                 →
             </button>
 
-            <div class="counter" id="counter">
+            <div class="counter">
                 <span class="new-images-badge hidden" id="newImagesBadge">!</span>
+                <span id="counterText"></span>
             </div>
         </div>
     </div>
@@ -470,18 +486,13 @@
                     return;
                 }
 
-                // If this is a silent refresh (from SSE), don't change which image is shown
-                // but DO update the current display in case the image at currentIndex changed
+                // If this is a silent refresh (from SSE), only update the counter
+                // Don't change the displayed image or clear the badge
                 if (silentRefresh) {
-                    // Update the counter to reflect new total
+                    // Update the counter to reflect new total (badge will show because newImagesCount > 0)
                     updateCounter();
                     // Preload the newest images in the background
                     preloadImages(0, Math.min(3, images.length));
-                    // Re-display the current image to update metadata (timestamp, etc.)
-                    // in case the image at currentIndex is now different
-                    if (currentIndex < images.length) {
-                        displayImage(currentIndex);
-                    }
                     return;
                 }
 
@@ -506,17 +517,11 @@
         }
 
         function updateCounter() {
-            const counterText = document.getElementById('counter');
+            const counterText = document.getElementById('counterText');
             const badge = document.getElementById('newImagesBadge');
 
-            // Update counter text (remove badge from textContent calculation)
-            const textNode = Array.from(counterText.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
-            if (textNode) {
-                textNode.textContent = `${currentIndex + 1} / ${images.length}`;
-            } else {
-                // Create text node if it doesn't exist
-                counterText.insertBefore(document.createTextNode(`${currentIndex + 1} / ${images.length}`), counterText.firstChild);
-            }
+            // Update counter text
+            counterText.textContent = `${currentIndex + 1} / ${images.length}`;
 
             // Update badge visibility
             if (newImagesCount > 0) {
@@ -556,13 +561,17 @@
             }
 
             // Update date display
-            const dateElement = document.getElementById('imageDate');
+            const dateDayElement = document.getElementById('imageDateDay');
+            const dateTimeElement = document.getElementById('imageDateTime');
             if (image.timestamp) {
                 const date = new Date(image.timestamp);
-                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                dateElement.textContent = date.toLocaleDateString('en-US', options);
+                const dayOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+                dateDayElement.textContent = date.toLocaleDateString('en-US', dayOptions);
+                dateTimeElement.textContent = date.toLocaleTimeString('en-US', timeOptions);
             } else {
-                dateElement.textContent = ''; // Clear if no date
+                dateDayElement.textContent = ''; // Clear if no date
+                dateTimeElement.textContent = '';
             }
 
             updateCounter();
