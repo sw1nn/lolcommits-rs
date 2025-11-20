@@ -5,10 +5,11 @@ use std::path::PathBuf;
 use sw1nn_lolcommits_rs::{capture, config, error::{Error, Result}};
 
 #[derive(Parser, Debug)]
-#[command(name = "lolcommits")]
+#[command(name = "lolcommits_upload")]
 #[command(about = "Take a snapshot with your webcam when you commit")]
+#[command(version)]
 struct Args {
-    #[arg(help = "The commit revision (any git revision parameter)")]
+    #[arg(default_value = "HEAD", help = "The commit revision (any git revision parameter)")]
     revision: String,
 
     #[arg(long, action = clap::ArgAction::SetTrue, help = "Enable chyron overlay (overrides config)")]
