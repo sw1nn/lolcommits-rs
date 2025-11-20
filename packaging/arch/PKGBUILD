@@ -2,7 +2,7 @@
 
 pkgbase=lolcommits
 pkgname=('lolcommits' 'lolcommits-server')
-pkgver=1.6.0
+pkgver=1.7.0
 pkgrel=1
 pkgdesc='Webcam snapshot tool for git commits'
 arch=('x86_64')

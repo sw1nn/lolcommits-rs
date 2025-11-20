@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.7.0 - 2025-11-20
+#### Features
+- (**daemon**) add --version flag support - (a50d4f7) - Neale Swinnerton
+#### Build system
+- (**packaging**) update PKGBUILD for renamed binary - (556ef22) - Neale Swinnerton
+#### Refactoring
+- (**client**) rename lolcommits binary to lolcommits_upload - (c92ce40) - Neale Swinnerton
+
+- - -
+
 ## v1.6.0 - 2025-11-20
 #### Features
 - (**daemon**) output version on startup - (b6df24c) - Neale Swinnerton
