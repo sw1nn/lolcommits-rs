@@ -8,14 +8,17 @@ use sw1nn_lolcommits_rs::{capture, config, error::{Error, Result}};
 #[command(name = "lolcommits")]
 #[command(about = "Take a snapshot with your webcam when you commit")]
 struct Args {
-    #[arg(help = "The commit SHA")]
-    sha: String,
+    #[arg(help = "The commit revision (any git revision parameter)")]
+    revision: String,
 
     #[arg(long, action = clap::ArgAction::SetTrue, help = "Enable chyron overlay (overrides config)")]
     chyron: bool,
 
     #[arg(long, action = clap::ArgAction::SetTrue, help = "Disable chyron overlay (overrides config)")]
     no_chyron: bool,
+
+    #[arg(long, action = clap::ArgAction::SetTrue, help = "Force upload even if SHA already exists")]
+    force: bool,
 
     #[arg(long, value_name = "FILE", help = "Path to config file")]
     config: Option<PathBuf>,
@@ -38,9 +41,10 @@ fn main() -> Result<()> {
     let server_url = config.client.server_url.clone();
 
     let capture_args = capture::CaptureArgs {
-        sha: args.sha,
+        revision: args.revision,
         chyron: args.chyron,
         no_chyron: args.no_chyron,
+        force: args.force,
     };
 
     if !tracing::enabled!(tracing::Level::INFO) {

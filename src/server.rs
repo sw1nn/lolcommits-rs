@@ -7,15 +7,17 @@ use axum::{
 };
 use futures::stream::Stream;
 use serde::{Deserialize, Serialize, Serializer};
+use std::collections::HashSet;
 use std::convert::Infallible;
 use std::path::PathBuf;
-use tokio::sync::broadcast;
+use std::sync::Arc;
+use tokio::sync::{broadcast, RwLock};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
 
-use crate::{config, git, image_metadata, image_processor};
+use crate::{config, error::Result, git, image_metadata, image_processor};
 
 #[derive(Debug, Serialize)]
 struct ConfigResponse {
@@ -30,7 +32,7 @@ struct UploadResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 struct UploadMetadata {
-    sha: String,
+    revision: String,
     message: String,
     commit_type: String,
     scope: String,
@@ -41,6 +43,8 @@ struct UploadMetadata {
     insertions: u32,
     deletions: u32,
     enable_chyron: bool,
+    #[serde(default)]
+    force: bool,
 }
 
 #[derive(Debug)]
@@ -55,7 +59,7 @@ impl std::ops::Deref for ImageMetadata {
 }
 
 impl Serialize for ImageMetadata {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -69,7 +73,7 @@ impl Serialize for ImageMetadata {
 
         let mut state = serializer.serialize_struct("ImageMetadata", 9)?;
         state.serialize_field("filename", &filename)?;
-        state.serialize_field("sha", &self.0.sha)?;
+        state.serialize_field("revision", &self.0.revision)?;
         state.serialize_field("message", &self.0.message)?;
         state.serialize_field("commit_type", &self.0.commit_type)?;
         state.serialize_field("scope", &self.0.scope)?;
@@ -84,13 +88,26 @@ impl Serialize for ImageMetadata {
 #[derive(Clone)]
 struct AppState {
     tx: broadcast::Sender<String>,
+    revision_cache: Arc<RwLock<HashSet<String>>>,
 }
 
 pub fn create_router(data_home: std::path::PathBuf) -> Router {
     // Create broadcast channel for SSE events (capacity of 100 events)
     let (tx, _rx) = broadcast::channel(100);
 
-    let state = AppState { tx };
+    // Initialize revision cache from existing images
+    let revision_cache = match initialize_revision_cache() {
+        Ok(cache) => {
+            tracing::info!(count = cache.len(), "Initialized revision cache");
+            Arc::new(RwLock::new(cache))
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to initialize revision cache, starting with empty cache");
+            Arc::new(RwLock::new(HashSet::new()))
+        }
+    };
+
+    let state = AppState { tx, revision_cache };
     Router::new()
         .route("/", get(index_handler))
         .route("/api/images", get(list_images))
@@ -156,7 +173,7 @@ async fn get_config() -> Response {
 
 async fn sse_handler(
     State(state): State<AppState>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+) -> Sse<impl Stream<Item = std::result::Result<Event, Infallible>>> {
     let rx = state.tx.subscribe();
 
     let stream = async_stream::stream! {
@@ -184,7 +201,13 @@ async fn sse_handler(
     )
 }
 
-fn get_image_list(config: &config::Config) -> Result<Vec<git::CommitMetadata>, Box<dyn std::error::Error>> {
+fn initialize_revision_cache() -> Result<HashSet<String>> {
+    let config = config::Config::load()?;
+    let images = get_image_list(&config)?;
+    Ok(images.into_iter().map(|img| img.revision).collect())
+}
+
+fn get_image_list(config: &config::Config) -> Result<Vec<git::CommitMetadata>> {
     let images_dir = PathBuf::from(&config.server.images_dir);
 
     // Create directory if it doesn't exist
@@ -262,15 +285,16 @@ async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart)
     };
 
     tracing::info!(
-        sha = %metadata.sha,
+        revision = %metadata.revision,
         repo = %metadata.repo_name,
         "Received upload, spawning async processor"
     );
 
     // Spawn async processing task
     let tx = state.tx.clone();
+    let revision_cache = state.revision_cache.clone();
     tokio::spawn(async move {
-        if let Err(e) = process_image_async(image_bytes, metadata, tx).await {
+        if let Err(e) = process_image_async(image_bytes, metadata, tx, revision_cache).await {
             tracing::error!(error = %e, "Failed to process image");
         }
     });
@@ -290,11 +314,21 @@ async fn process_image_async(
     image_bytes: Vec<u8>,
     metadata: UploadMetadata,
     tx: broadcast::Sender<String>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    tracing::info!(sha = %metadata.sha, "Starting async image processing");
+    revision_cache: Arc<RwLock<HashSet<String>>>,
+) -> Result<()> {
+    tracing::info!(revision = %metadata.revision, force = metadata.force, "Starting async image processing");
 
     // Load config
     let config = config::Config::load()?;
+
+    // Check if revision already exists (unless force flag is set)
+    if !metadata.force {
+        let cache = revision_cache.read().await;
+        if cache.contains(&metadata.revision) {
+            tracing::info!(revision = %metadata.revision, "Revision already exists, skipping upload");
+            return Ok(());
+        }
+    }
 
     // Decode image
     let image = image::load_from_memory(&image_bytes)?;
@@ -307,7 +341,7 @@ async fn process_image_async(
     // Create commit metadata
     let commit_metadata = git::CommitMetadata {
         path: PathBuf::new(),
-        sha: metadata.sha.clone(),
+        revision: metadata.revision.clone(),
         message: metadata.message,
         commit_type: metadata.commit_type,
         scope: metadata.scope,
@@ -333,7 +367,7 @@ async fn process_image_async(
     };
 
     // Get output path
-    let output_path = get_output_path(&config, &metadata.repo_name, &metadata.sha)?;
+    let output_path = get_output_path(&config, &metadata.repo_name, &metadata.revision)?;
 
     // Write to temporary file first, then atomically move to final destination
     let temp_file = tempfile::NamedTempFile::new_in(
@@ -352,6 +386,13 @@ async fn process_image_async(
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
     tracing::info!(path = %output_path.display(), "Saved lolcommit with metadata");
 
+    // Add revision to cache
+    {
+        let mut cache = revision_cache.write().await;
+        cache.insert(metadata.revision.clone());
+        tracing::debug!(revision = %metadata.revision, "Added revision to cache");
+    }
+
     // Broadcast new image event to SSE clients
     let _ = tx.send("new_image".to_string());
     tracing::debug!("Broadcasted new_image event to SSE clients");
@@ -363,7 +404,7 @@ fn get_output_path(
     config: &config::Config,
     repo_name: &str,
     commit_sha: &str,
-) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<PathBuf> {
     let images_dir = PathBuf::from(&config.server.images_dir);
 
     // Ensure directory exists

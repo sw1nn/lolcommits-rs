@@ -121,7 +121,7 @@
             line-height: 28px;
         }
 
-        .web-chyron .commit-sha {
+        .web-chyron .commit-revision {
             position: absolute;
             right: 15px;
             top: 10px;
@@ -410,7 +410,7 @@
                 <img id="currentImage" alt="Lolcommit">
                 <div class="web-chyron" id="webChyron">
                     <div class="commit-title" id="chyronMessage"></div>
-                    <div class="commit-sha" id="chyronSha"></div>
+                    <div class="commit-revision" id="chyronRevision"></div>
                     <div class="commit-info-line" id="chyronInfoLine"></div>
                     <div class="commit-stats" id="chyronStats"></div>
                 </div>
@@ -584,8 +584,8 @@
             // Title: commit message
             document.getElementById('chyronMessage').textContent = image.message || '';
 
-            // SHA: short form (7 chars)
-            document.getElementById('chyronSha').textContent = image.sha.substring(0, 7);
+            // Revision: short form (7 chars)
+            document.getElementById('chyronRevision').textContent = image.revision.substring(0, 7);
 
             // Info line: "TYPE • scope • repo" or "TYPE • repo"
             const commitType = image.commit_type || 'commit';

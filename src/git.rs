@@ -21,7 +21,7 @@ impl DiffStats {
 pub struct CommitMetadata {
     #[serde(skip_serializing, default)]
     pub path: std::path::PathBuf,
-    pub sha: String,
+    pub revision: String,
     pub message: String,
     pub commit_type: String,
     pub scope: String,
@@ -208,6 +208,11 @@ pub fn parse_commit_scope(message: &str) -> String {
 pub fn open_repo() -> Result<Repository> {
     let current_dir = env::current_dir()?;
     Repository::discover(current_dir).map_err(|_| NotInGitRepo)
+}
+
+pub fn resolve_revision(repo: &Repository, revision: &str) -> Result<String> {
+    let obj = repo.revparse_single(revision)?;
+    Ok(obj.id().to_string())
 }
 
 #[cfg(test)]

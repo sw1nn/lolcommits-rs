@@ -3,14 +3,15 @@ use serde::Serialize;
 use std::io::Cursor;
 
 pub struct CaptureArgs {
-    pub sha: String,
+    pub revision: String,
     pub chyron: bool,
     pub no_chyron: bool,
+    pub force: bool,
 }
 
 #[derive(Debug, Serialize)]
 struct UploadMetadata {
-    sha: String,
+    revision: String,
     message: String,
     commit_type: String,
     scope: String,
@@ -21,6 +22,7 @@ struct UploadMetadata {
     insertions: u32,
     deletions: u32,
     enable_chyron: bool,
+    force: bool,
 }
 
 pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Result<()> {
@@ -35,12 +37,16 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
 
     let repo = git::open_repo()?;
 
-    let message = git::get_commit_message(&repo, &args.sha)?;
-    tracing::info!(message = %message, sha = %args.sha, "Starting lolcommits");
+    // Resolve revision to full SHA
+    let revision = git::resolve_revision(&repo, &args.revision)?;
+    tracing::debug!(input = %args.revision, revision = %revision, "Resolved revision");
+
+    let message = git::get_commit_message(&repo, &revision)?;
+    tracing::info!(message = %message, revision = %revision, "Starting lolcommits");
 
     let repo_name = git::get_repo_name(&repo)?;
     let branch_name = git::get_branch_name(&repo)?;
-    let stats = git::get_diff_stats(&args.sha)?;
+    let stats = git::get_diff_stats(&revision)?;
 
     tracing::info!(
         repo_name = %repo_name,
@@ -76,7 +82,7 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
 
     // Create metadata for upload
     let metadata = UploadMetadata {
-        sha: args.sha.clone(),
+        revision: revision.clone(),
         message: message_without_prefix,
         commit_type,
         scope,
@@ -87,6 +93,7 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
         insertions: stats.insertions,
         deletions: stats.deletions,
         enable_chyron: config.general.enable_chyron,
+        force: args.force,
     };
 
     // Encode image to PNG bytes

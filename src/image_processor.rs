@@ -513,12 +513,12 @@ pub fn overlay_chyron(
         (width as i32) - 150 // default position if no stats
     };
 
-    // Draw SHA on the right side of the title line, left-aligned with stats
-    if !metadata.sha.is_empty() {
-        let sha_short = if metadata.sha.len() > 7 {
-            &metadata.sha[..7]
+    // Draw revision on the right side of the title line, left-aligned with stats
+    if !metadata.revision.is_empty() {
+        let revision_short = if metadata.revision.len() > 7 {
+            &metadata.revision[..7]
         } else {
-            &metadata.sha
+            &metadata.revision
         };
         draw_text_mut(
             &mut rgba_image,
@@ -527,7 +527,7 @@ pub fn overlay_chyron(
             title_y,
             title_scale,
             &sha_font,
-            sha_short,
+            revision_short,
         );
     }
 

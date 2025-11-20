@@ -22,7 +22,7 @@ pub fn save_png_with_metadata<P: AsRef<Path>>(
     encoder.set_depth(png::BitDepth::Eight);
 
     // Add metadata as tEXt chunks
-    encoder.add_text_chunk("lolcommit:sha".to_string(), metadata.sha.clone())?;
+    encoder.add_text_chunk("lolcommit:revision".to_string(), metadata.revision.clone())?;
     encoder.add_text_chunk("lolcommit:message".to_string(), metadata.message.clone())?;
     encoder.add_text_chunk("lolcommit:type".to_string(), metadata.commit_type.clone())?;
 
@@ -65,7 +65,7 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
     let info = reader.info();
     let text_chunks = &info.uncompressed_latin1_text;
 
-    let mut sha = String::new();
+    let mut revision = String::new();
     let mut message = String::new();
     let mut commit_type = String::new();
     let mut scope = String::new();
@@ -80,8 +80,8 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
 
     for chunk in text_chunks {
         match chunk.keyword.as_str() {
-            "lolcommit:sha" => {
-                sha = chunk.text.clone();
+            "lolcommit:revision" => {
+                revision = chunk.text.clone();
                 found_any = true;
             }
             "lolcommit:message" => {
@@ -127,7 +127,7 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
     if found_any {
         Ok(Some(CommitMetadata {
             path: std::path::PathBuf::new(), // Will be set by caller
-            sha,
+            revision,
             message,
             commit_type,
             scope,
@@ -166,7 +166,7 @@ pub fn parse_image_file(path: &Path) -> Option<CommitMetadata> {
         return None;
     }
 
-    let sha = parts[0].to_string();
+    let revision = parts[0].to_string();
     let time_part = parts[1];
     let repo_name = parts[2].to_string();
 
@@ -176,7 +176,7 @@ pub fn parse_image_file(path: &Path) -> Option<CommitMetadata> {
 
     Some(CommitMetadata {
         path: path.to_path_buf(),
-        sha,
+        revision,
         message: String::new(),
         commit_type: String::new(),
         scope: String::new(),
