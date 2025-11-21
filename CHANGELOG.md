@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.7.1 - 2025-11-21
+#### Bug Fixes
+- (**gallery**) improve timestamp layout and fix new image badge - (2361c74) - Neale Swinnerton
+- (**gallery**) update timestamp when images refresh - (bdec53f) - Neale Swinnerton
+#### Miscellaneous Chores
+- output server version at startup - (d0eb72c) - Neale Swinnerton
+
+- - -
+
 ## v1.7.0 - 2025-11-20
 #### Features
 - (**daemon**) add --version flag support - (a50d4f7) - Neale Swinnerton
