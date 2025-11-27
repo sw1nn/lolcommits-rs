@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.9.0 - 2025-11-27
+#### Refactoring
+- (**config**) rename general to burned_in_chyron and make sections optional - (a66db61) - Neale Swinnerton
+
+- - -
+
 ## v1.8.0 - 2025-11-27
 #### Features
 - (**client**) improve camera handling, error reporting, and message display - (7db0235) - Neale Swinnerton
