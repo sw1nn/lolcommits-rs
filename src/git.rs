@@ -97,9 +97,7 @@ fn get_diff_stats_in_dir(sha: &str, repo_path: Option<&std::path::Path>) -> Resu
         cmd.arg("-C").arg(path);
     }
 
-    let output = cmd
-        .args(["show", "--numstat", "--format=", sha])
-        .output()?;
+    let output = cmd.args(["show", "--numstat", "--format=", sha]).output()?;
 
     if !output.status.success() {
         return Err(GitCommandFailed);
@@ -236,15 +234,8 @@ mod tests {
         let tree_id = index.write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
         let sig = repo.signature().unwrap();
-        repo.commit(
-            Some("HEAD"),
-            &sig,
-            &sig,
-            "Initial commit",
-            &tree,
-            &[],
-        )
-        .unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
+            .unwrap();
 
         // Create a second commit with some changes to test diff stats
         fs::write(temp_dir.path().join("test.txt"), "test content\n").unwrap();
@@ -254,15 +245,8 @@ mod tests {
         let tree_id = index.write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
         let parent = repo.head().unwrap().peel_to_commit().unwrap();
-        repo.commit(
-            Some("HEAD"),
-            &sig,
-            &sig,
-            "Add test file",
-            &tree,
-            &[&parent],
-        )
-        .unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "Add test file", &tree, &[&parent])
+            .unwrap();
 
         temp_dir
     }

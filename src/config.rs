@@ -3,6 +3,45 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use xdg::BaseDirectories;
 
+/// Configuration for a single camera device.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraDeviceConfig {
+    /// Device path or index (e.g., "/dev/video0", "0", "/dev/video-ugreen")
+    pub device: String,
+
+    /// Camera pixel format: "YUYV", "MJPEG", "NV12", "GRAY". If not set, auto-detects.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+
+    /// Camera capture width in pixels. If not set, auto-detects.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+
+    /// Camera capture height in pixels. If not set, auto-detects.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+
+    /// Camera frame rate. If not set, auto-detects.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fps: Option<u32>,
+}
+
+impl CameraDeviceConfig {
+    /// Create a new camera device config with just the device path.
+    pub fn new<S>(device: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self {
+            device: device.into(),
+            format: None,
+            width: None,
+            height: None,
+            fps: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
@@ -47,8 +86,10 @@ pub struct GeneralConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
-    #[serde(default = "default_camera_device")]
-    pub camera_device: String,
+    /// List of camera devices to try in order. First working camera is used.
+    /// Each camera can have its own format/resolution settings.
+    #[serde(default = "default_camera_devices")]
+    pub camera_devices: Vec<CameraDeviceConfig>,
 
     #[serde(default = "default_camera_warmup_frames")]
     pub camera_warmup_frames: usize,
@@ -98,8 +139,8 @@ fn default_background_path() -> String {
         .to_string()
 }
 
-fn default_camera_device() -> String {
-    "0".to_string()
+fn default_camera_devices() -> Vec<CameraDeviceConfig> {
+    vec![CameraDeviceConfig::new("0")]
 }
 
 fn default_camera_warmup_frames() -> usize {
@@ -173,7 +214,7 @@ impl Default for GeneralConfig {
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
-            camera_device: default_camera_device(),
+            camera_devices: default_camera_devices(),
             camera_warmup_frames: default_camera_warmup_frames(),
             server_url: default_server_url(),
             server_upload_timeout_secs: default_server_upload_timeout_secs(),
@@ -267,12 +308,11 @@ impl Config {
         }
 
         tracing::debug!(path = %config_path.display(), "Loading config");
-        let contents = std::fs::read_to_string(&config_path).map_err(|source| {
-            Error::ConfigFileRead {
+        let contents =
+            std::fs::read_to_string(&config_path).map_err(|source| Error::ConfigFileRead {
                 path: config_path.clone(),
                 source,
-            }
-        })?;
+            })?;
 
         let config: Config = toml::from_str(&contents)?;
 
@@ -317,7 +357,8 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(config.client.camera_device, "0");
+        assert_eq!(config.client.camera_devices.len(), 1);
+        assert_eq!(config.client.camera_devices[0].device, "0");
         assert_eq!(config.client.camera_warmup_frames, 3);
         assert_eq!(config.general.chyron_opacity, 0.75);
         assert!(config.server.center_person);
@@ -328,7 +369,14 @@ mod tests {
         let config = Config::default();
         let toml_str = toml::to_string(&config).unwrap();
         let parsed: Config = toml::from_str(&toml_str).unwrap();
-        assert_eq!(config.client.camera_device, parsed.client.camera_device);
+        assert_eq!(
+            config.client.camera_devices.len(),
+            parsed.client.camera_devices.len()
+        );
+        assert_eq!(
+            config.client.camera_devices[0].device,
+            parsed.client.camera_devices[0].device
+        );
     }
 
     #[test]

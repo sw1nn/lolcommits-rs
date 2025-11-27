@@ -1,8 +1,11 @@
 use axum::{
+    Json, Router,
     extract::{DefaultBodyLimit, Multipart, State},
     http::StatusCode,
-    Json, Router,
-    response::{Html, IntoResponse, Response, sse::{Event, Sse}},
+    response::{
+        Html, IntoResponse, Response,
+        sse::{Event, Sse},
+    },
     routing::{get, post},
 };
 use futures::stream::Stream;
@@ -11,7 +14,7 @@ use std::collections::HashSet;
 use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -238,32 +241,28 @@ async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart)
         tracing::debug!(field_name = %name, "Received field");
 
         match name.as_str() {
-            "image" => {
-                match field.bytes().await {
-                    Ok(bytes) => {
-                        tracing::debug!(size = bytes.len(), "Received image");
-                        image_bytes = Some(bytes.to_vec());
-                    }
-                    Err(e) => {
-                        tracing::error!(error = %e, "Failed to read image bytes");
-                    }
+            "image" => match field.bytes().await {
+                Ok(bytes) => {
+                    tracing::debug!(size = bytes.len(), "Received image");
+                    image_bytes = Some(bytes.to_vec());
                 }
-            }
-            "metadata" => {
-                match field.bytes().await {
-                    Ok(bytes) => {
-                        if let Ok(text) = String::from_utf8(bytes.to_vec()) {
-                            if let Ok(parsed) = serde_json::from_str::<UploadMetadata>(&text) {
-                                tracing::debug!(?parsed, "Received metadata");
-                                metadata = Some(parsed);
-                            }
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to read image bytes");
+                }
+            },
+            "metadata" => match field.bytes().await {
+                Ok(bytes) => {
+                    if let Ok(text) = String::from_utf8(bytes.to_vec()) {
+                        if let Ok(parsed) = serde_json::from_str::<UploadMetadata>(&text) {
+                            tracing::debug!(?parsed, "Received metadata");
+                            metadata = Some(parsed);
                         }
                     }
-                    Err(e) => {
-                        tracing::error!(error = %e, "Failed to read metadata bytes");
-                    }
                 }
-            }
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to read metadata bytes");
+                }
+            },
             _ => {
                 tracing::debug!(field_name = %name, "Ignoring unknown field");
             }
@@ -271,17 +270,11 @@ async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart)
     }
 
     let Some(image_bytes) = image_bytes else {
-        return (
-            StatusCode::BAD_REQUEST,
-            "Missing image field"
-        ).into_response();
+        return (StatusCode::BAD_REQUEST, "Missing image field").into_response();
     };
 
     let Some(metadata) = metadata else {
-        return (
-            StatusCode::BAD_REQUEST,
-            "Missing metadata field"
-        ).into_response();
+        return (StatusCode::BAD_REQUEST, "Missing metadata field").into_response();
     };
 
     tracing::info!(
@@ -400,11 +393,7 @@ async fn process_image_async(
     Ok(())
 }
 
-fn get_output_path(
-    config: &config::Config,
-    repo_name: &str,
-    commit_sha: &str,
-) -> Result<PathBuf> {
+fn get_output_path(config: &config::Config, repo_name: &str, commit_sha: &str) -> Result<PathBuf> {
     let images_dir = PathBuf::from(&config.server.images_dir);
 
     // Ensure directory exists

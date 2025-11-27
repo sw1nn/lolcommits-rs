@@ -446,6 +446,14 @@ pub fn overlay_chyron(
     let title_scale = PxScale::from(config.general.title_font_size);
     let info_scale = PxScale::from(config.general.info_font_size);
 
+    // Extract first line and strip conventional commit prefix for display
+    let first_line = metadata.message.lines().next().unwrap_or(&metadata.message);
+    let display_message = if let Some(colon_pos) = first_line.find(':') {
+        first_line[colon_pos + 1..].trim()
+    } else {
+        first_line
+    };
+
     let title_y = y_start as i32 + 10;
     draw_text_mut(
         &mut rgba_image,
@@ -454,7 +462,7 @@ pub fn overlay_chyron(
         title_y,
         title_scale,
         &message_font,
-        &metadata.message,
+        display_message,
     );
 
     let info_y = y_start as i32 + 45;
@@ -708,7 +716,10 @@ mod tests {
 
         temp_env::with_vars(
             [
-                ("XDG_DATA_HOME", Some(temp_dir.join("nonexistent").to_str().unwrap())),
+                (
+                    "XDG_DATA_HOME",
+                    Some(temp_dir.join("nonexistent").to_str().unwrap()),
+                ),
                 ("XDG_DATA_DIRS", Some(data_dirs.as_str())),
                 ("HOME", None::<&str>),
             ],

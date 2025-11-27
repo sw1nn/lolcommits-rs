@@ -123,15 +123,16 @@
         .web-chyron .commit-title {
             position: absolute;
             left: 15px;
-            top: 8px;
-            font-size: 28px;
+            top: 12px;
+            font-size: 16px;
             font-weight: normal;
             color: #fff;
             max-width: calc(100% - 200px);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            line-height: 28px;
+            line-height: 20px;
+            cursor: help;
         }
 
         .web-chyron .commit-revision {
@@ -596,8 +597,16 @@
         }
 
         function updateChyron(image) {
-            // Title: commit message
-            document.getElementById('chyronMessage').textContent = image.message || '';
+            // Title: extract first line, strip conventional commit prefix, truncate to 70 chars
+            const fullMessage = image.message || '';
+            const firstLine = fullMessage.split('\n')[0];
+            const colonPos = firstLine.indexOf(':');
+            const strippedMessage = colonPos >= 0 ? firstLine.substring(colonPos + 1).trim() : firstLine;
+            const displayMessage = strippedMessage.length > 70 ? strippedMessage.substring(0, 67) + '...' : strippedMessage;
+
+            const messageEl = document.getElementById('chyronMessage');
+            messageEl.textContent = displayMessage;
+            messageEl.title = fullMessage; // Tooltip shows full commit message
 
             // Revision: short form (7 chars)
             document.getElementById('chyronRevision').textContent = image.revision.substring(0, 7);

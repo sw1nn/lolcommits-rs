@@ -1,4 +1,26 @@
-use crate::{camera, config, error::{Error, Result}, git};
+//! Lolcommit capture and upload functionality.
+//!
+//! This module handles capturing webcam images and uploading them to the lolcommitsd server.
+//!
+//! # Error Handling Requirements
+//!
+//! The following rules govern error handling for the upload client:
+//!
+//! - **Camera not available** (device does not exist): Exit with error.
+//! - **Camera busy** (device exists but in use): Exit with error, unless `--quiet` is passed.
+//!   With `--quiet`, log "camera busy" at INFO level and exit with return code 0.
+//! - **RUST_LOG**: When set, all logging should output at the appropriate level.
+//! - **Connection failure** (camera capture succeeds but cannot connect to server): Exit with error.
+//! - **Upload error** (camera capture succeeds, connection succeeds, but server returns 4xx/5xx):
+//!   Log the error and exit with error.
+//! - **Upload success** (camera capture succeeds, server returns 2xx): Log the response body at
+//!   INFO level.
+
+use crate::{
+    camera, config,
+    error::{Error, Result},
+    git,
+};
 use serde::Serialize;
 use std::io::Cursor;
 
@@ -58,32 +80,19 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
     );
 
     // Capture image from webcam
-    let image = match camera::capture_image(&config.client.camera_device) {
-        Ok(img) => {
-            tracing::info!("Captured image from webcam");
-            img
-        }
-        Err(Error::CameraBusy { device }) => {
-            tracing::warn!(
-                device,
-                "Camera is currently in use, skipping lolcommit capture"
-            );
-            return Ok(());
-        }
-        Err(e) => return Err(e),
-    };
+    let image = camera::capture_image(&config.client)?;
+    tracing::info!("Captured image from webcam");
 
     // Parse commit message
     let commit_type = git::parse_commit_type(&message);
     let first_line = message.lines().next().unwrap_or(&message);
-    let message_without_prefix = git::strip_commit_prefix(first_line);
     let scope = git::parse_commit_scope(first_line);
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     // Create metadata for upload
     let metadata = UploadMetadata {
         revision: revision.clone(),
-        message: message_without_prefix,
+        message: message.clone(),
         commit_type,
         scope,
         timestamp,
@@ -137,27 +146,33 @@ fn upload_to_server(
                 .mime_str("image/png")?,
         );
 
-    let response = client.post(&url).multipart(form).send().map_err(|e| {
-        tracing::error!(error = %e, "Failed to connect to server");
-        Error::ServerConnectionFailed {
-            url: url.clone(),
-            source: e,
-        }
-    })?;
+    let response =
+        client
+            .post(&url)
+            .multipart(form)
+            .send()
+            .map_err(|e| Error::ServerConnectionFailed {
+                url: url.clone(),
+                source: e,
+            })?;
 
-    if response.status() == reqwest::StatusCode::ACCEPTED {
-        tracing::info!("Upload accepted, server processing in background");
+    let status = response.status();
+    let body = response
+        .text()
+        .unwrap_or_else(|_| "Unknown response".to_string());
+
+    if status.is_success() {
+        let message = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v.get("message").and_then(|m| m.as_str()).map(String::from))
+            .unwrap_or_else(|| body.clone());
+        tracing::info!(status = %status, message = %message, "Upload successful");
         Ok(())
     } else {
-        let status = response.status();
-        let error_text = response
-            .text()
-            .unwrap_or_else(|_| "Unknown error".to_string());
-        tracing::error!(status = %status, error = %error_text, "Upload failed");
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("Server returned {}: {}", status, error_text),
-        )
-        .into())
+        tracing::error!(status = %status, body = %body, "Upload failed");
+        Err(Error::UploadFailed {
+            status: status.as_u16(),
+            body,
+        })
     }
 }

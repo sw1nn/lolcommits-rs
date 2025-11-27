@@ -16,7 +16,9 @@ fn main() {
         }
         _ => {
             // If pkg-config fails, default to 4.12
-            eprintln!("cargo:warning=Could not detect OpenCV version via pkg-config, defaulting to 4.12");
+            eprintln!(
+                "cargo:warning=Could not detect OpenCV version via pkg-config, defaulting to 4.12"
+            );
             "4.12.0".to_string()
         }
     };
@@ -42,7 +44,9 @@ fn main() {
     } else {
         // Default to 5-parameter version if parsing fails
         println!("cargo:rustc-cfg=cvt_color5");
-        println!("cargo:warning=Could not parse OpenCV version, defaulting to 5-parameter cvt_color");
+        println!(
+            "cargo:warning=Could not parse OpenCV version, defaulting to 5-parameter cvt_color"
+        );
     }
 
     // Re-run build script if opencv4.pc changes

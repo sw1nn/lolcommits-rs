@@ -2,14 +2,20 @@ use clap::Parser;
 use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
-use sw1nn_lolcommits_rs::{capture, config, error::{Error, Result}};
+use sw1nn_lolcommits_rs::{
+    capture, config,
+    error::{Error, Result},
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "lolcommits_upload")]
 #[command(about = "Take a snapshot with your webcam when you commit")]
 #[command(version)]
 struct Args {
-    #[arg(default_value = "HEAD", help = "The commit revision (any git revision parameter)")]
+    #[arg(
+        default_value = "HEAD",
+        help = "The commit revision (any git revision parameter)"
+    )]
     revision: String,
 
     #[arg(long, action = clap::ArgAction::SetTrue, help = "Enable chyron overlay (overrides config)")]
@@ -20,6 +26,9 @@ struct Args {
 
     #[arg(long, action = clap::ArgAction::SetTrue, help = "Force upload even if SHA already exists")]
     force: bool,
+
+    #[arg(long, short, action = clap::ArgAction::SetTrue, help = "Suppress camera busy errors (exit 0 instead)")]
+    quiet: bool,
 
     #[arg(long, value_name = "FILE", help = "Path to config file")]
     config: Option<PathBuf>,
@@ -55,16 +64,43 @@ fn main() -> Result<()> {
     match capture::capture_lolcommit(capture_args, config) {
         Ok(()) => {
             if !tracing::enabled!(tracing::Level::INFO) {
-                println!("{} Lolcommit uploaded successfully to {}", "✓".green(), server_url.magenta());
+                println!(
+                    "{} Lolcommit uploaded successfully to {}",
+                    "✓".green(),
+                    server_url.magenta()
+                );
             }
             Ok(())
         }
+        Err(Error::CameraBusy { device }) if args.quiet => {
+            tracing::info!(device, "Camera busy, skipping lolcommit capture");
+            Ok(())
+        }
+        Err(Error::CameraBusy { device }) => {
+            eprintln!("{} Camera {} is busy", "✗".red(), device.magenta());
+            Err(Error::CameraBusy { device })
+        }
         Err(Error::ServerConnectionFailed { url, source }) => {
-            if !tracing::enabled!(tracing::Level::INFO) {
-                eprintln!("{} Failed to connect to lolcommitsd at {}: {}", "✗".red(), url.magenta(), source.to_string().red());
-            }
+            eprintln!(
+                "{} Failed to connect to lolcommitsd at {}: {}",
+                "✗".red(),
+                url.magenta(),
+                source.to_string().red()
+            );
             Err(Error::ServerConnectionFailed { url, source })
         }
-        Err(e) => Err(e),
+        Err(Error::UploadFailed { status, body }) => {
+            eprintln!(
+                "{} Upload failed with status {}: {}",
+                "✗".red(),
+                status.to_string().yellow(),
+                body.red()
+            );
+            Err(Error::UploadFailed { status, body })
+        }
+        Err(e) => {
+            eprintln!("{} {}", "✗".red(), e.to_string().red());
+            Err(e)
+        }
     }
 }

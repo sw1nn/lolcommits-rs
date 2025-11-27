@@ -90,6 +90,15 @@ pub enum Error {
         url: String,
         source: reqwest::Error,
     },
+
+    UploadFailed {
+        status: u16,
+        body: String,
+    },
+
+    UnknownCameraFormat {
+        format: String,
+    },
 }
 
 impl std::fmt::Display for Error {
