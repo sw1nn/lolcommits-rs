@@ -109,7 +109,7 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
     let mut png_bytes = Vec::new();
     image
         .write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     tracing::debug!(bytes = png_bytes.len(), "Encoded image to PNG");
 
     // Upload to server

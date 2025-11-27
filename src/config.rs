@@ -42,7 +42,7 @@ impl CameraDeviceConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub general: GeneralConfig,
@@ -232,16 +232,6 @@ impl Default for ServerConfig {
             models_dir: default_models_dir(),
             bind_address: default_bind_address(),
             bind_port: default_bind_port(),
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            general: GeneralConfig::default(),
-            client: ClientConfig::default(),
-            server: ServerConfig::default(),
         }
     }
 }

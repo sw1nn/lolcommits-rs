@@ -117,15 +117,15 @@ fn get_diff_stats_in_dir(sha: &str, repo_path: Option<&std::path::Path>) -> Resu
         let parts: Vec<&str> = line.split('\t').collect();
         if parts.len() >= 2 {
             // Handle binary files (marked as "-")
-            if parts[0] != "-" {
-                if let Ok(insertions) = parts[0].parse::<u32>() {
-                    total_insertions += insertions;
-                }
+            if parts[0] != "-"
+                && let Ok(insertions) = parts[0].parse::<u32>()
+            {
+                total_insertions += insertions;
             }
-            if parts[1] != "-" {
-                if let Ok(deletions) = parts[1].parse::<u32>() {
-                    total_deletions += deletions;
-                }
+            if parts[1] != "-"
+                && let Ok(deletions) = parts[1].parse::<u32>()
+            {
+                total_deletions += deletions;
             }
             files_changed += 1;
         }

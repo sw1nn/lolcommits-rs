@@ -92,8 +92,7 @@ mod tests {
         let result = get_model_path(&models_dir);
 
         // If the test fails due to network issues, that's acceptable in CI/offline scenarios
-        if result.is_err() {
-            let err = result.unwrap_err();
+        if let Err(err) = result {
             // Only accept network-related failures, not logic errors
             assert!(
                 matches!(err, Error::Reqwest(_) | Error::HttpError { .. }),
@@ -125,8 +124,7 @@ mod tests {
         let result = get_model_path(&models_dir);
 
         // If the test fails due to network issues, that's acceptable
-        if result.is_err() {
-            let err = result.unwrap_err();
+        if let Err(err) = result {
             assert!(
                 matches!(err, Error::Reqwest(_) | Error::HttpError { .. }),
                 "Unexpected error type: {}",

@@ -41,11 +41,11 @@ fn parse_camera_device(device: &str) -> Result<CameraIndex> {
 
         if let Some(filename) = resolved_path.file_name() {
             let filename_str = filename.to_string_lossy();
-            if let Some(index_str) = filename_str.strip_prefix("video") {
-                if let Ok(index) = index_str.parse::<u32>() {
-                    tracing::debug!(index, "Extracted index from device path");
-                    return Ok(CameraIndex::Index(index));
-                }
+            if let Some(index_str) = filename_str.strip_prefix("video")
+                && let Ok(index) = index_str.parse::<u32>()
+            {
+                tracing::debug!(index, "Extracted index from device path");
+                return Ok(CameraIndex::Index(index));
             }
         }
 

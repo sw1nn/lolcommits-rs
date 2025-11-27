@@ -252,11 +252,11 @@ async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart)
             },
             "metadata" => match field.bytes().await {
                 Ok(bytes) => {
-                    if let Ok(text) = String::from_utf8(bytes.to_vec()) {
-                        if let Ok(parsed) = serde_json::from_str::<UploadMetadata>(&text) {
-                            tracing::debug!(?parsed, "Received metadata");
-                            metadata = Some(parsed);
-                        }
+                    if let Ok(text) = String::from_utf8(bytes.to_vec())
+                        && let Ok(parsed) = serde_json::from_str::<UploadMetadata>(&text)
+                    {
+                        tracing::debug!(?parsed, "Received metadata");
+                        metadata = Some(parsed);
                     }
                 }
                 Err(e) => {
@@ -376,7 +376,7 @@ async fn process_image_async(
     // Atomically move temp file to final destination
     temp_file
         .persist(&output_path)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     tracing::info!(path = %output_path.display(), "Saved lolcommit with metadata");
 
     // Add revision to cache
