@@ -44,18 +44,18 @@ impl CameraDeviceConfig {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
-    #[serde(default)]
-    pub general: GeneralConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client: Option<ClientConfig>,
 
-    #[serde(default)]
-    pub client: ClientConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server: Option<ServerConfig>,
 
-    #[serde(default)]
-    pub server: ServerConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub burned_in_chyron: Option<BurnedInChyronConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GeneralConfig {
+pub struct BurnedInChyronConfig {
     #[serde(default = "default_font_name")]
     pub default_font_name: String,
 
@@ -80,8 +80,8 @@ pub struct GeneralConfig {
     #[serde(default = "default_info_font_size")]
     pub info_font_size: f32,
 
-    #[serde(default = "default_enable_chyron")]
-    pub enable_chyron: bool,
+    #[serde(default = "default_burned_in_chyron")]
+    pub burned_in_chyron: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,7 +163,7 @@ fn default_center_person() -> bool {
     true
 }
 
-fn default_enable_chyron() -> bool {
+fn default_burned_in_chyron() -> bool {
     true
 }
 
@@ -195,7 +195,7 @@ fn default_bind_port() -> u16 {
     3000
 }
 
-impl Default for GeneralConfig {
+impl Default for BurnedInChyronConfig {
     fn default() -> Self {
         Self {
             default_font_name: default_font_name(),
@@ -206,7 +206,7 @@ impl Default for GeneralConfig {
             chyron_opacity: default_chyron_opacity(),
             title_font_size: default_title_font_size(),
             info_font_size: default_info_font_size(),
-            enable_chyron: default_enable_chyron(),
+            burned_in_chyron: default_burned_in_chyron(),
         }
     }
 }
@@ -236,7 +236,7 @@ impl Default for ServerConfig {
     }
 }
 
-impl GeneralConfig {
+impl BurnedInChyronConfig {
     /// Get the font name for messages, falling back to default_font_name
     pub fn get_message_font_name(&self) -> &str {
         self.message_font_name
@@ -347,89 +347,106 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(config.client.camera_devices.len(), 1);
-        assert_eq!(config.client.camera_devices[0].device, "0");
-        assert_eq!(config.client.camera_warmup_frames, 3);
-        assert_eq!(config.general.chyron_opacity, 0.75);
-        assert!(config.server.center_person);
+        // All sections are None by default
+        assert!(config.client.is_none());
+        assert!(config.server.is_none());
+        assert!(config.burned_in_chyron.is_none());
+    }
+
+    #[test]
+    fn test_default_burned_in_chyron_config() {
+        let chyron = BurnedInChyronConfig::default();
+        assert_eq!(chyron.chyron_opacity, 0.75);
+    }
+
+    #[test]
+    fn test_default_client_config() {
+        let client = ClientConfig::default();
+        assert_eq!(client.camera_devices.len(), 1);
+        assert_eq!(client.camera_devices[0].device, "0");
+        assert_eq!(client.camera_warmup_frames, 3);
+    }
+
+    #[test]
+    fn test_default_server_config() {
+        let server = ServerConfig::default();
+        assert!(server.center_person);
     }
 
     #[test]
     fn test_config_serialization() {
-        let config = Config::default();
+        let config = Config {
+            client: Some(ClientConfig::default()),
+            server: Some(ServerConfig::default()),
+            ..Default::default()
+        };
         let toml_str = toml::to_string(&config).unwrap();
         let parsed: Config = toml::from_str(&toml_str).unwrap();
         assert_eq!(
-            config.client.camera_devices.len(),
-            parsed.client.camera_devices.len()
+            config.client.as_ref().unwrap().camera_devices.len(),
+            parsed.client.as_ref().unwrap().camera_devices.len()
         );
         assert_eq!(
-            config.client.camera_devices[0].device,
-            parsed.client.camera_devices[0].device
+            config.client.as_ref().unwrap().camera_devices[0].device,
+            parsed.client.as_ref().unwrap().camera_devices[0].device
         );
     }
 
     #[test]
     fn test_font_fallback_all_none() {
-        let config = Config {
-            general: GeneralConfig {
-                default_font_name: "DejaVu Sans".to_string(),
-                message_font_name: None,
-                info_font_name: None,
-                sha_font_name: None,
-                stats_font_name: None,
-                ..Default::default()
-            },
+        let chyron = BurnedInChyronConfig {
+            default_font_name: "DejaVu Sans".to_string(),
+            message_font_name: None,
+            info_font_name: None,
+            sha_font_name: None,
+            stats_font_name: None,
             ..Default::default()
         };
 
-        assert_eq!(config.general.get_message_font_name(), "DejaVu Sans");
-        assert_eq!(config.general.get_info_font_name(), "DejaVu Sans");
-        assert_eq!(config.general.get_sha_font_name(), "DejaVu Sans");
-        assert_eq!(config.general.get_stats_font_name(), "DejaVu Sans");
+        assert_eq!(chyron.get_message_font_name(), "DejaVu Sans");
+        assert_eq!(chyron.get_info_font_name(), "DejaVu Sans");
+        assert_eq!(chyron.get_sha_font_name(), "DejaVu Sans");
+        assert_eq!(chyron.get_stats_font_name(), "DejaVu Sans");
     }
 
     #[test]
     fn test_font_fallback_mixed() {
-        let config = Config {
-            general: GeneralConfig {
-                default_font_name: "monospace".to_string(),
-                message_font_name: Some("Arial".to_string()),
-                info_font_name: None,
-                sha_font_name: Some("Courier New".to_string()),
-                stats_font_name: None,
-                ..Default::default()
-            },
+        let chyron = BurnedInChyronConfig {
+            default_font_name: "monospace".to_string(),
+            message_font_name: Some("Arial".to_string()),
+            info_font_name: None,
+            sha_font_name: Some("Courier New".to_string()),
+            stats_font_name: None,
             ..Default::default()
         };
 
-        assert_eq!(config.general.get_message_font_name(), "Arial");
-        assert_eq!(config.general.get_info_font_name(), "monospace");
-        assert_eq!(config.general.get_sha_font_name(), "Courier New");
-        assert_eq!(config.general.get_stats_font_name(), "monospace");
+        assert_eq!(chyron.get_message_font_name(), "Arial");
+        assert_eq!(chyron.get_info_font_name(), "monospace");
+        assert_eq!(chyron.get_sha_font_name(), "Courier New");
+        assert_eq!(chyron.get_stats_font_name(), "monospace");
     }
 
     #[test]
     fn test_default_font_name_is_monospace() {
-        let config = Config::default();
-        assert_eq!(config.general.default_font_name, "monospace");
-        assert_eq!(config.general.get_message_font_name(), "monospace");
-        assert_eq!(config.general.get_info_font_name(), "monospace");
-        assert_eq!(config.general.get_sha_font_name(), "monospace");
-        assert_eq!(config.general.get_stats_font_name(), "monospace");
+        let chyron = BurnedInChyronConfig::default();
+        assert_eq!(chyron.default_font_name, "monospace");
+        assert_eq!(chyron.get_message_font_name(), "monospace");
+        assert_eq!(chyron.get_info_font_name(), "monospace");
+        assert_eq!(chyron.get_sha_font_name(), "monospace");
+        assert_eq!(chyron.get_stats_font_name(), "monospace");
     }
 
     #[test]
     fn test_font_serialization_omits_none() {
         let config = Config {
-            general: GeneralConfig {
+            burned_in_chyron: Some(BurnedInChyronConfig {
                 default_font_name: "monospace".to_string(),
                 message_font_name: Some("Arial".to_string()),
                 info_font_name: None,
                 sha_font_name: None,
                 stats_font_name: None,
                 ..Default::default()
-            },
+            }),
             ..Default::default()
         };
 
@@ -447,7 +464,7 @@ mod tests {
     #[test]
     fn test_font_deserialization_missing_fields() {
         let toml_str = r#"
-            [general]
+            [burned_in_chyron]
             default_font_name = "Liberation Sans"
 
             [client]
@@ -457,44 +474,42 @@ mod tests {
         "#;
 
         let config: Config = toml::from_str(toml_str).unwrap();
+        let chyron = config.burned_in_chyron.unwrap();
 
-        assert_eq!(config.general.default_font_name, "Liberation Sans");
-        assert_eq!(config.general.message_font_name, None);
-        assert_eq!(config.general.get_message_font_name(), "Liberation Sans");
+        assert_eq!(chyron.default_font_name, "Liberation Sans");
+        assert_eq!(chyron.message_font_name, None);
+        assert_eq!(chyron.get_message_font_name(), "Liberation Sans");
     }
 
     #[test]
     fn test_default_bind_address_and_port() {
-        let config = Config::default();
-        assert_eq!(config.server.bind_address, "0.0.0.0");
-        assert_eq!(config.server.bind_port, 3000);
+        let server = ServerConfig::default();
+        assert_eq!(server.bind_address, "0.0.0.0");
+        assert_eq!(server.bind_port, 3000);
     }
 
     #[test]
     fn test_custom_bind_address_and_port() {
         let toml_str = r#"
-            [general]
-
-            [client]
-
             [server]
             bind_address = "0.0.0.0"
             bind_port = 8080
         "#;
 
         let config: Config = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.server.bind_address, "0.0.0.0");
-        assert_eq!(config.server.bind_port, 8080);
+        let server = config.server.unwrap();
+        assert_eq!(server.bind_address, "0.0.0.0");
+        assert_eq!(server.bind_port, 8080);
     }
 
     #[test]
     fn test_bind_config_serialization() {
         let config = Config {
-            server: ServerConfig {
+            server: Some(ServerConfig {
                 bind_address: "0.0.0.0".to_string(),
                 bind_port: 8080,
                 ..Default::default()
-            },
+            }),
             ..Default::default()
         };
 
@@ -503,7 +518,8 @@ mod tests {
         assert!(toml_str.contains("bind_port = 8080"));
 
         let parsed: Config = toml::from_str(&toml_str).unwrap();
-        assert_eq!(parsed.server.bind_address, "0.0.0.0");
-        assert_eq!(parsed.server.bind_port, 8080);
+        let server = parsed.server.unwrap();
+        assert_eq!(server.bind_address, "0.0.0.0");
+        assert_eq!(server.bind_port, 8080);
     }
 }

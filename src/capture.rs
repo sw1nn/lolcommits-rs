@@ -43,19 +43,28 @@ struct UploadMetadata {
     files_changed: u32,
     insertions: u32,
     deletions: u32,
-    enable_chyron: bool,
+    burned_in_chyron: bool,
     force: bool,
 }
 
-pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Result<()> {
-    // Override chyron setting if CLI flags are provided
-    if args.chyron {
-        config.general.enable_chyron = true;
+pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()> {
+    // Get client config, defaulting if not present in config file
+    let client_config = config.client.clone().unwrap_or_default();
+
+    // Get burned_in_chyron setting, with CLI flags taking precedence
+    let burned_in_chyron = if args.chyron {
         tracing::debug!("Chyron enabled via --chyron flag");
+        true
     } else if args.no_chyron {
-        config.general.enable_chyron = false;
         tracing::debug!("Chyron disabled via --no-chyron flag");
-    }
+        false
+    } else {
+        config
+            .burned_in_chyron
+            .as_ref()
+            .map(|c| c.burned_in_chyron)
+            .unwrap_or(true)
+    };
 
     let repo = git::open_repo()?;
 
@@ -80,7 +89,7 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
     );
 
     // Capture image from webcam
-    let image = camera::capture_image(&config.client)?;
+    let image = camera::capture_image(&client_config)?;
     tracing::info!("Captured image from webcam");
 
     // Parse commit message
@@ -101,7 +110,7 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
         files_changed: stats.files_changed,
         insertions: stats.insertions,
         deletions: stats.deletions,
-        enable_chyron: config.general.enable_chyron,
+        burned_in_chyron,
         force: args.force,
     };
 
@@ -113,22 +122,22 @@ pub fn capture_lolcommit(args: CaptureArgs, mut config: config::Config) -> Resul
     tracing::debug!(bytes = png_bytes.len(), "Encoded image to PNG");
 
     // Upload to server
-    upload_to_server(&config, png_bytes, metadata)?;
+    upload_to_server(&client_config, png_bytes, metadata)?;
 
     Ok(())
 }
 
 fn upload_to_server(
-    config: &config::Config,
+    config: &config::ClientConfig,
     image_bytes: Vec<u8>,
     metadata: UploadMetadata,
 ) -> Result<()> {
-    let url = format!("{}/api/upload", config.client.server_url);
+    let url = format!("{}/api/upload", config.server_url);
     tracing::info!(url = %url, "Uploading to server");
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(
-            config.client.server_upload_timeout_secs,
+            config.server_upload_timeout_secs,
         ))
         .build()?;
 

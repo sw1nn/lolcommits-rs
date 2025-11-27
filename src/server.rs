@@ -45,7 +45,7 @@ struct UploadMetadata {
     files_changed: u32,
     insertions: u32,
     deletions: u32,
-    enable_chyron: bool,
+    burned_in_chyron: bool,
     #[serde(default)]
     force: bool,
 }
@@ -132,20 +132,24 @@ async fn index_handler() -> Html<&'static str> {
 
 async fn list_images() -> Response {
     match config::Config::load() {
-        Ok(config) => match get_image_list(&config) {
-            Ok(images) => {
-                let responses: Vec<ImageMetadata> = images.into_iter().map(ImageMetadata).collect();
-                Json(responses).into_response()
+        Ok(config) => {
+            let server_config = config.server.clone().unwrap_or_default();
+            match get_image_list(&server_config) {
+                Ok(images) => {
+                    let responses: Vec<ImageMetadata> =
+                        images.into_iter().map(ImageMetadata).collect();
+                    Json(responses).into_response()
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to list images");
+                    (
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Failed to list images: {}", e),
+                    )
+                        .into_response()
+                }
             }
-            Err(e) => {
-                tracing::error!(error = %e, "Failed to list images");
-                (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to list images: {}", e),
-                )
-                    .into_response()
-            }
-        },
+        }
         Err(e) => {
             tracing::error!(error = %e, "Failed to load config");
             (
@@ -159,10 +163,14 @@ async fn list_images() -> Response {
 
 async fn get_config() -> Response {
     match config::Config::load() {
-        Ok(cfg) => Json(ConfigResponse {
-            gallery_title: cfg.server.gallery_title,
-        })
-        .into_response(),
+        Ok(cfg) => {
+            let gallery_title = cfg
+                .server
+                .as_ref()
+                .map(|s| s.gallery_title.clone())
+                .unwrap_or_else(|| "Lolcommits Gallery".to_string());
+            Json(ConfigResponse { gallery_title }).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "Failed to load config");
             (
@@ -206,12 +214,13 @@ async fn sse_handler(
 
 fn initialize_revision_cache() -> Result<HashSet<String>> {
     let config = config::Config::load()?;
-    let images = get_image_list(&config)?;
+    let server_config = config.server.clone().unwrap_or_default();
+    let images = get_image_list(&server_config)?;
     Ok(images.into_iter().map(|img| img.revision).collect())
 }
 
-fn get_image_list(config: &config::Config) -> Result<Vec<git::CommitMetadata>> {
-    let images_dir = PathBuf::from(&config.server.images_dir);
+fn get_image_list(config: &config::ServerConfig) -> Result<Vec<git::CommitMetadata>> {
+    let images_dir = PathBuf::from(&config.images_dir);
 
     // Create directory if it doesn't exist
     if !images_dir.exists() {
@@ -327,8 +336,11 @@ async fn process_image_async(
     let image = image::load_from_memory(&image_bytes)?;
     tracing::debug!("Decoded image");
 
+    // Get server config for processing
+    let server_config = config.server.clone().unwrap_or_default();
+
     // Background replacement
-    let processed_image = image_processor::replace_background(image, &config)?;
+    let processed_image = image_processor::replace_background(&server_config, image)?;
     tracing::info!("Background replaced");
 
     // Create commit metadata
@@ -349,10 +361,11 @@ async fn process_image_async(
     };
 
     // Apply chyron if enabled
-    let final_image = if metadata.enable_chyron {
+    let final_image = if metadata.burned_in_chyron {
+        let chyron_config = config.burned_in_chyron.clone().unwrap_or_default();
         let image_with_chyron =
-            image_processor::overlay_chyron(processed_image, &commit_metadata, &config)?;
-        tracing::debug!("Overlaid chyron");
+            image_processor::burn_in_chyron(&chyron_config, processed_image, &commit_metadata)?;
+        tracing::debug!("Burned in chyron");
         image_with_chyron
     } else {
         tracing::debug!("Chyron disabled");
@@ -360,7 +373,7 @@ async fn process_image_async(
     };
 
     // Get output path
-    let output_path = get_output_path(&config, &metadata.repo_name, &metadata.revision)?;
+    let output_path = get_output_path(&server_config, &metadata.repo_name, &metadata.revision)?;
 
     // Write to temporary file first, then atomically move to final destination
     let temp_file = tempfile::NamedTempFile::new_in(
@@ -393,8 +406,12 @@ async fn process_image_async(
     Ok(())
 }
 
-fn get_output_path(config: &config::Config, repo_name: &str, commit_sha: &str) -> Result<PathBuf> {
-    let images_dir = PathBuf::from(&config.server.images_dir);
+fn get_output_path(
+    config: &config::ServerConfig,
+    repo_name: &str,
+    commit_sha: &str,
+) -> Result<PathBuf> {
+    let images_dir = PathBuf::from(&config.images_dir);
 
     // Ensure directory exists
     std::fs::create_dir_all(&images_dir)?;

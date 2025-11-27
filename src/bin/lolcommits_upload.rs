@@ -48,7 +48,11 @@ fn main() -> Result<()> {
     let config = config::Config::load_from(args.config)?;
     tracing::debug!(?config, "Loaded configuration");
 
-    let server_url = config.client.server_url.clone();
+    let server_url = config
+        .client
+        .as_ref()
+        .map(|c| c.server_url.clone())
+        .unwrap_or_else(|| "server".to_string());
 
     let capture_args = capture::CaptureArgs {
         revision: args.revision,
@@ -61,7 +65,7 @@ fn main() -> Result<()> {
         println!("📸 Capturing lolcommit...");
     }
 
-    match capture::capture_lolcommit(capture_args, config) {
+    match capture::capture_lolcommit(config, capture_args) {
         Ok(()) => {
             if !tracing::enabled!(tracing::Level::INFO) {
                 println!(

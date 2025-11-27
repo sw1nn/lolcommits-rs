@@ -19,13 +19,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Args::parse();
     let cfg = config::Config::load_from(args.config)?;
-    let images_dir = PathBuf::from(&cfg.server.images_dir);
 
     tracing::info!(config = ?cfg, "Parsed config");
 
+    let server_cfg = cfg.server.clone().unwrap_or_default();
+    let images_dir = PathBuf::from(&server_cfg.images_dir);
+
     let app = server::create_router(images_dir);
 
-    let bind_addr = format!("{}:{}", cfg.server.bind_address, cfg.server.bind_port);
+    let bind_addr = format!("{}:{}", server_cfg.bind_address, server_cfg.bind_port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     tracing::info!(address = %bind_addr, "Server running");
 
