@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.8.0 - 2025-11-27
+#### Features
+- (**client**) improve camera handling, error reporting, and message display - (7db0235) - Neale Swinnerton
+#### Miscellaneous Chores
+- (**pkg**) update PKGBUILD repo urls - (2533d97) - Neale Swinnerton
+#### Style
+- fix clippy warnings - (623e5cd) - Neale Swinnerton
+
+- - -
+
 ## v1.7.1 - 2025-11-21
 #### Bug Fixes
 - (**gallery**) improve timestamp layout and fix new image badge - (2361c74) - Neale Swinnerton
