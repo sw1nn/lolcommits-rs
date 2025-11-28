@@ -21,6 +21,10 @@ ProtectHome=true
 ReadWritePaths=/var/lib/lolcommits
 StateDirectory=lolcommits
 ConfigurationDirectory=lolcommits
+CacheDirectory=lolcommits
+
+# Fontconfig needs XDG_CACHE_HOME to find writable cache directory
+Environment="XDG_CACHE_HOME=%C/lolcommits"
 
 # Resource limits
 LimitNOFILE=65536
