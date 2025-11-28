@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.10.0 - 2025-11-28
+#### Features
+- (**server**) add log_output config option and --log CLI argument - (c7c96af) - Neale Swinnerton
+#### Bug Fixes
+- (**git**) respect git environment variables in repository operations - (f68c4b2) - Neale Swinnerton
+
+- - -
+
 ## v1.9.0 - 2025-11-27
 #### Refactoring
 - (**config**) rename general to burned_in_chyron and make sections optional - (a66db61) - Neale Swinnerton
