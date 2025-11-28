@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.10.1 - 2025-11-28
+#### Bug Fixes
+- (**systemd**) add cache directory for fontconfig - (be0e63f) - Neale Swinnerton
+
+- - -
+
 ## v1.10.0 - 2025-11-28
 #### Features
 - (**server**) add log_output config option and --log CLI argument - (c7c96af) - Neale Swinnerton
