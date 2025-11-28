@@ -123,6 +123,9 @@ pub struct ServerConfig {
 
     #[serde(default = "default_bind_port")]
     pub bind_port: u16,
+
+    #[serde(default)]
+    pub log_output: crate::LogOutput,
 }
 
 fn default_font_name() -> String {
@@ -232,6 +235,7 @@ impl Default for ServerConfig {
             models_dir: default_models_dir(),
             bind_address: default_bind_address(),
             bind_port: default_bind_port(),
+            log_output: crate::LogOutput::default(),
         }
     }
 }
