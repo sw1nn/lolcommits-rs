@@ -1,7 +1,6 @@
 use crate::error::{Error::*, Result};
 use git2::Repository;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::process::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,7 +93,11 @@ fn get_diff_stats_in_dir(sha: &str, repo_path: Option<&std::path::Path>) -> Resu
     let mut cmd = Command::new("git");
 
     if let Some(path) = repo_path {
-        cmd.arg("-C").arg(path);
+        // Clear GIT_DIR/GIT_WORK_TREE so -C takes effect
+        cmd.env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .arg("-C")
+            .arg(path);
     }
 
     let output = cmd.args(["show", "--numstat", "--format=", sha]).output()?;
@@ -204,8 +207,7 @@ pub fn parse_commit_scope(message: &str) -> String {
 }
 
 pub fn open_repo() -> Result<Repository> {
-    let current_dir = env::current_dir()?;
-    Repository::discover(current_dir).map_err(|_| NotInGitRepo)
+    Repository::open_from_env().map_err(|_| NotInGitRepo)
 }
 
 pub fn resolve_revision(repo: &Repository, revision: &str) -> Result<String> {
