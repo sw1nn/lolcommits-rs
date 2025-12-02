@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.10.2 - 2025-12-02
+#### Bug Fixes
+- (**config**) move burned_in_chyron setting to server config - (a37a62c) - Neale Swinnerton
+
+- - -
+
 ## v1.10.1 - 2025-11-28
 #### Bug Fixes
 - (**systemd**) add cache directory for fontconfig - (be0e63f) - Neale Swinnerton
