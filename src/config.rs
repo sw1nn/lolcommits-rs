@@ -79,9 +79,6 @@ pub struct BurnedInChyronConfig {
 
     #[serde(default = "default_info_font_size")]
     pub info_font_size: f32,
-
-    #[serde(default = "default_burned_in_chyron")]
-    pub burned_in_chyron: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +123,9 @@ pub struct ServerConfig {
 
     #[serde(default)]
     pub log_output: crate::LogOutput,
+
+    #[serde(default = "default_burned_in_chyron")]
+    pub burned_in_chyron: bool,
 }
 
 fn default_font_name() -> String {
@@ -209,7 +209,6 @@ impl Default for BurnedInChyronConfig {
             chyron_opacity: default_chyron_opacity(),
             title_font_size: default_title_font_size(),
             info_font_size: default_info_font_size(),
-            burned_in_chyron: default_burned_in_chyron(),
         }
     }
 }
@@ -236,6 +235,7 @@ impl Default for ServerConfig {
             bind_address: default_bind_address(),
             bind_port: default_bind_port(),
             log_output: crate::LogOutput::default(),
+            burned_in_chyron: default_burned_in_chyron(),
         }
     }
 }
@@ -375,6 +375,7 @@ mod tests {
     fn test_default_server_config() {
         let server = ServerConfig::default();
         assert!(server.center_person);
+        assert!(server.burned_in_chyron);
     }
 
     #[test]
@@ -525,5 +526,29 @@ mod tests {
         let server = parsed.server.unwrap();
         assert_eq!(server.bind_address, "0.0.0.0");
         assert_eq!(server.bind_port, 8080);
+    }
+
+    #[test]
+    fn test_server_burned_in_chyron_false() {
+        let toml_str = r#"
+            [server]
+            burned_in_chyron = false
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+        let server = config.server.unwrap();
+        assert!(!server.burned_in_chyron);
+    }
+
+    #[test]
+    fn test_server_burned_in_chyron_defaults_to_true() {
+        let toml_str = r#"
+            [server]
+            bind_port = 8080
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+        let server = config.server.unwrap();
+        assert!(server.burned_in_chyron);
     }
 }

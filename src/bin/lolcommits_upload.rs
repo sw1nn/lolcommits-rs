@@ -18,12 +18,6 @@ struct Args {
     )]
     revision: String,
 
-    #[arg(long, action = clap::ArgAction::SetTrue, help = "Enable chyron overlay (overrides config)")]
-    chyron: bool,
-
-    #[arg(long, action = clap::ArgAction::SetTrue, help = "Disable chyron overlay (overrides config)")]
-    no_chyron: bool,
-
     #[arg(long, action = clap::ArgAction::SetTrue, help = "Force upload even if SHA already exists")]
     force: bool,
 
@@ -56,8 +50,6 @@ fn main() -> Result<()> {
 
     let capture_args = capture::CaptureArgs {
         revision: args.revision,
-        chyron: args.chyron,
-        no_chyron: args.no_chyron,
         force: args.force,
     };
 

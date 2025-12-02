@@ -45,7 +45,6 @@ struct UploadMetadata {
     files_changed: u32,
     insertions: u32,
     deletions: u32,
-    burned_in_chyron: bool,
     #[serde(default)]
     force: bool,
 }
@@ -360,8 +359,8 @@ async fn process_image_async(
         },
     };
 
-    // Apply chyron if enabled
-    let final_image = if metadata.burned_in_chyron {
+    // Apply chyron if enabled in server config
+    let final_image = if server_config.burned_in_chyron {
         let chyron_config = config.burned_in_chyron.clone().unwrap_or_default();
         let image_with_chyron =
             image_processor::burn_in_chyron(&chyron_config, processed_image, &commit_metadata)?;

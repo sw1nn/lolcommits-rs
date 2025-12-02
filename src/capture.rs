@@ -26,8 +26,6 @@ use std::io::Cursor;
 
 pub struct CaptureArgs {
     pub revision: String,
-    pub chyron: bool,
-    pub no_chyron: bool,
     pub force: bool,
 }
 
@@ -43,28 +41,12 @@ struct UploadMetadata {
     files_changed: u32,
     insertions: u32,
     deletions: u32,
-    burned_in_chyron: bool,
     force: bool,
 }
 
 pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()> {
     // Get client config, defaulting if not present in config file
     let client_config = config.client.clone().unwrap_or_default();
-
-    // Get burned_in_chyron setting, with CLI flags taking precedence
-    let burned_in_chyron = if args.chyron {
-        tracing::debug!("Chyron enabled via --chyron flag");
-        true
-    } else if args.no_chyron {
-        tracing::debug!("Chyron disabled via --no-chyron flag");
-        false
-    } else {
-        config
-            .burned_in_chyron
-            .as_ref()
-            .map(|c| c.burned_in_chyron)
-            .unwrap_or(true)
-    };
 
     let repo = git::open_repo()?;
 
@@ -110,7 +92,6 @@ pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()
         files_changed: stats.files_changed,
         insertions: stats.insertions,
         deletions: stats.deletions,
-        burned_in_chyron,
         force: args.force,
     };
 
