@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.10.3 - 2025-12-22
+#### Bug Fixes
+- (**metadata**) use iTXt chunks for UTF-8 safe PNG metadata - (c9cb9b8) - Neale Swinnerton
+
+- - -
+
 ## v1.10.2 - 2025-12-02
 #### Bug Fixes
 - (**config**) move burned_in_chyron setting to server config - (a37a62c) - Neale Swinnerton
