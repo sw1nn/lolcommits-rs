@@ -2,6 +2,7 @@ use crate::error::Result;
 use crate::git::{CommitMetadata, DiffStats};
 use image::DynamicImage;
 use png::Encoder;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
@@ -21,31 +22,31 @@ pub fn save_png_with_metadata<P: AsRef<Path>>(
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
 
-    // Add metadata as tEXt chunks
-    encoder.add_text_chunk("lolcommit:revision".to_string(), metadata.revision.clone())?;
-    encoder.add_text_chunk("lolcommit:message".to_string(), metadata.message.clone())?;
-    encoder.add_text_chunk("lolcommit:type".to_string(), metadata.commit_type.clone())?;
+    // Add metadata as iTXt chunks (UTF-8 safe, unlike tEXt which is Latin-1 only)
+    encoder.add_itxt_chunk("lolcommit:revision".to_string(), metadata.revision.clone())?;
+    encoder.add_itxt_chunk("lolcommit:message".to_string(), metadata.message.clone())?;
+    encoder.add_itxt_chunk("lolcommit:type".to_string(), metadata.commit_type.clone())?;
 
     if !metadata.scope.is_empty() {
-        encoder.add_text_chunk("lolcommit:scope".to_string(), metadata.scope.clone())?;
+        encoder.add_itxt_chunk("lolcommit:scope".to_string(), metadata.scope.clone())?;
     }
 
-    encoder.add_text_chunk(
+    encoder.add_itxt_chunk(
         "lolcommit:timestamp".to_string(),
         metadata.timestamp.clone(),
     )?;
-    encoder.add_text_chunk("lolcommit:repo".to_string(), metadata.repo_name.clone())?;
-    encoder.add_text_chunk("lolcommit:branch".to_string(), metadata.branch_name.clone())?;
-    encoder.add_text_chunk("lolcommit:diff".to_string(), metadata.diff_stats_string())?;
-    encoder.add_text_chunk(
+    encoder.add_itxt_chunk("lolcommit:repo".to_string(), metadata.repo_name.clone())?;
+    encoder.add_itxt_chunk("lolcommit:branch".to_string(), metadata.branch_name.clone())?;
+    encoder.add_itxt_chunk("lolcommit:diff".to_string(), metadata.diff_stats_string())?;
+    encoder.add_itxt_chunk(
         "lolcommit:files_changed".to_string(),
         metadata.stats.files_changed.to_string(),
     )?;
-    encoder.add_text_chunk(
+    encoder.add_itxt_chunk(
         "lolcommit:insertions".to_string(),
         metadata.stats.insertions.to_string(),
     )?;
-    encoder.add_text_chunk(
+    encoder.add_itxt_chunk(
         "lolcommit:deletions".to_string(),
         metadata.stats.deletions.to_string(),
     )?;
@@ -63,66 +64,43 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
     let reader = decoder.read_info()?;
 
     let info = reader.info();
-    let text_chunks = &info.uncompressed_latin1_text;
 
-    let mut revision = String::new();
-    let mut message = String::new();
-    let mut commit_type = String::new();
-    let mut scope = String::new();
-    let mut timestamp = String::new();
-    let mut repo_name = String::new();
-    let mut branch_name = String::new();
-    let mut files_changed = 0;
-    let mut insertions = 0;
-    let mut deletions = 0;
+    // Build HashMaps for O(1) lookup - tEXt first, then iTXt overwrites (iTXt takes priority)
+    let mut chunks: HashMap<&str, String> = info
+        .uncompressed_latin1_text
+        .iter()
+        .map(|chunk| (chunk.keyword.as_str(), chunk.text.clone()))
+        .collect();
 
-    let mut found_any = false;
-
-    for chunk in text_chunks {
-        match chunk.keyword.as_str() {
-            "lolcommit:revision" => {
-                revision = chunk.text.clone();
-                found_any = true;
-            }
-            "lolcommit:message" => {
-                message = chunk.text.clone();
-                found_any = true;
-            }
-            "lolcommit:type" => {
-                commit_type = chunk.text.clone();
-                found_any = true;
-            }
-            "lolcommit:scope" => {
-                scope = chunk.text.clone();
-                found_any = true;
-            }
-            "lolcommit:timestamp" => {
-                timestamp = chunk.text.clone();
-                found_any = true;
-            }
-            "lolcommit:repo" => {
-                repo_name = chunk.text.clone();
-                found_any = true;
-            }
-            "lolcommit:branch" => {
-                branch_name = chunk.text.clone();
-                found_any = true;
-            }
-            "lolcommit:files_changed" => {
-                files_changed = chunk.text.parse().unwrap_or(0);
-                found_any = true;
-            }
-            "lolcommit:insertions" => {
-                insertions = chunk.text.parse().unwrap_or(0);
-                found_any = true;
-            }
-            "lolcommit:deletions" => {
-                deletions = chunk.text.parse().unwrap_or(0);
-                found_any = true;
-            }
-            _ => {}
+    for chunk in &info.utf8_text {
+        if let Ok(text) = chunk.get_text() {
+            chunks.insert(&chunk.keyword, text);
         }
     }
+
+    tracing::debug!(?chunks, "Loaded PNG metadata chunks");
+
+    let revision = chunks.remove("lolcommit:revision").unwrap_or_default();
+    let message = chunks.remove("lolcommit:message").unwrap_or_default();
+    let commit_type = chunks.remove("lolcommit:type").unwrap_or_default();
+    let scope = chunks.remove("lolcommit:scope").unwrap_or_default();
+    let timestamp = chunks.remove("lolcommit:timestamp").unwrap_or_default();
+    let repo_name = chunks.remove("lolcommit:repo").unwrap_or_default();
+    let branch_name = chunks.remove("lolcommit:branch").unwrap_or_default();
+    let files_changed = chunks
+        .remove("lolcommit:files_changed")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let insertions = chunks
+        .remove("lolcommit:insertions")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let deletions = chunks
+        .remove("lolcommit:deletions")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+
+    let found_any = !revision.is_empty() || !message.is_empty() || !commit_type.is_empty();
 
     if found_any {
         Ok(Some(CommitMetadata {
