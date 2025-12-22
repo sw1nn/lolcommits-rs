@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.10.4 - 2025-12-22
+#### Bug Fixes
+- (**packaging**) change source url https -> ssh - (aa10fcc) - Neale Swinnerton
+
+- - -
+
 ## v1.10.3 - 2025-12-22
 #### Bug Fixes
 - (**metadata**) use iTXt chunks for UTF-8 safe PNG metadata - (c9cb9b8) - Neale Swinnerton
