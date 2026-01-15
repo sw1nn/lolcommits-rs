@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.11.0 - 2026-01-15
+#### Build system
+- rename sw1nn-pkg-upload to sw1nn-pkg-ctl upload - (422bf22) - Neale Swinnerton
+
+- - -
+
 ## v1.10.4 - 2025-12-22
 #### Bug Fixes
 - (**packaging**) change source url https -> ssh - (aa10fcc) - Neale Swinnerton
