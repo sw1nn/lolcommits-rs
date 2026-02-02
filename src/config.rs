@@ -3,6 +3,12 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use xdg::BaseDirectories;
 
+/// XDG prefix for lolcommits configuration.
+const XDG_PREFIX: &str = "lolcommits";
+
+/// Default configuration file name within the config directory.
+const CONFIG_FILE_NAME: &str = "config.toml";
+
 /// Configuration for a single camera device.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CameraDeviceConfig {
@@ -133,10 +139,9 @@ fn default_font_name() -> String {
 }
 
 fn default_background_path() -> String {
-    let base_dirs =
-        BaseDirectories::with_prefix("lolcommits").expect("Failed to get XDG base directories");
-    base_dirs
+    BaseDirectories::with_prefix(XDG_PREFIX)
         .get_data_home()
+        .expect("XDG not configured")
         .join("background.png")
         .to_string_lossy()
         .to_string()
@@ -287,8 +292,8 @@ impl Config {
                 system_config
             } else {
                 // Fall back to user config
-                let base_dirs = BaseDirectories::with_prefix("lolcommits")?;
-                let user_config = base_dirs.place_config_file("config.toml")?;
+                let user_config =
+                    BaseDirectories::with_prefix(XDG_PREFIX).place_config_file(CONFIG_FILE_NAME)?;
                 tracing::debug!(path = %user_config.display(), "Using user config");
                 user_config
             }
@@ -321,9 +326,8 @@ impl Config {
 
     /// Save configuration to XDG_CONFIG_HOME/lolcommits/config.toml
     pub fn save(&self) -> Result {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits")?;
-
-        let config_path = base_dirs.place_config_file("config.toml")?;
+        let config_path =
+            BaseDirectories::with_prefix(XDG_PREFIX).place_config_file(CONFIG_FILE_NAME)?;
 
         let contents = toml::to_string_pretty(self)?;
 
@@ -337,10 +341,10 @@ impl Config {
     }
 
     /// Get the path to the config file
-    pub fn config_path() -> Result<PathBuf> {
-        let base_dirs = BaseDirectories::with_prefix("lolcommits")?;
-
-        Ok(base_dirs.get_config_home())
+    pub fn config_path() -> PathBuf {
+        BaseDirectories::with_prefix(XDG_PREFIX)
+            .get_config_home()
+            .expect("XDG not configured")
     }
 }
 
