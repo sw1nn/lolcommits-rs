@@ -93,7 +93,10 @@ struct AppState {
     revision_cache: Arc<RwLock<HashSet<String>>>,
 }
 
-pub fn create_router(data_home: std::path::PathBuf) -> Router {
+pub fn create_router(
+    data_home: std::path::PathBuf,
+    metrics_handle: metrics_exporter_prometheus::PrometheusHandle,
+) -> Router {
     // Create broadcast channel for SSE events (capacity of 100 events)
     let (tx, _rx) = broadcast::channel(100);
 
@@ -110,7 +113,8 @@ pub fn create_router(data_home: std::path::PathBuf) -> Router {
     };
 
     let state = AppState { tx, revision_cache };
-    Router::new()
+
+    let app_routes = Router::new()
         .route("/", get(index_handler))
         .route("/api/images", get(list_images))
         .route("/api/config", get(get_config))
@@ -122,7 +126,16 @@ pub fn create_router(data_home: std::path::PathBuf) -> Router {
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         )
-        .with_state(state)
+        .layer(axum::middleware::from_fn(crate::metrics::http_metrics_layer))
+        .with_state(state);
+
+    // Build metrics route (outside middleware so scraping doesn't inflate counts)
+    let metrics_routes = Router::new().route(
+        "/metrics",
+        get(move || std::future::ready(metrics_handle.render())),
+    );
+
+    app_routes.merge(metrics_routes)
 }
 
 async fn index_handler() -> Html<&'static str> {

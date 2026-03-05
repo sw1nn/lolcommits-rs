@@ -25,13 +25,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // CLI --log overrides config log_output
     let log_output = args.log.unwrap_or(server_cfg.log_output);
     init_tracing_with_output(log_output);
+    let metrics_handle = sw1nn_lolcommits_rs::metrics::install_recorder();
 
     tracing::info!("Starting lolcommitsd({})", env!("CARGO_PKG_VERSION"));
     tracing::info!(config = ?cfg, "Parsed config");
 
     let images_dir = PathBuf::from(&server_cfg.images_dir);
 
-    let app = server::create_router(images_dir);
+    let app = server::create_router(images_dir, metrics_handle);
 
     let bind_addr = format!("{}:{}", server_cfg.bind_address, server_cfg.bind_port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
