@@ -52,4 +52,12 @@ fn main() {
     // Re-run build script if opencv4.pc changes
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=PKG_CONFIG_PATH");
+
+    // Capture rustc version for metrics
+    let rustc_output = Command::new("rustc")
+        .arg("--version")
+        .output()
+        .expect("Failed to run rustc --version");
+    let rustc_version = String::from_utf8_lossy(&rustc_output.stdout).trim().to_string();
+    println!("cargo:rustc-env=RUSTC_VERSION={rustc_version}");
 }
