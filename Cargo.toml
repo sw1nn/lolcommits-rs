@@ -7,28 +7,28 @@ edition = "2024"
 clap = { version = "4.5", features = ["derive"] }
 nokhwa = { version = "0.10", features = ["input-native"] }
 image = "0.25"
-imageproc = "0.25"
+imageproc = "0.26"
 ab_glyph = "0.2"
-git2 = "0.19"
+git2 = "0.20"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-journald = "0.3"
-derive_more = { version = "1.0", features = ["display", "from", "error"] }
-directories = "5.0"
+derive_more = { version = "2.1", features = ["display", "from", "error"] }
+directories = "6.0"
 chrono = "0.4"
-opencv = { version = "0.97", default-features = false, features = [
+opencv = { version = "0.98", default-features = false, features = [
   "imgproc",
   "clang-runtime",
   "dnn",
 ] }
-reqwest = { version = "0.12", features = ["blocking", "multipart"] }
-md5 = "0.7"
+reqwest = { version = "0.13", features = ["blocking", "multipart"] }
+md5 = "0.8"
 sha2 = "0.10"
-toml = "0.8"
+toml = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 xdg = "3.0"
-fontconfig = "0.8"
-axum = { version = "0.7", features = ["multipart"] }
+fontconfig = "0.10"
+axum = { version = "0.8", features = ["multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["fs", "trace"] }
 serde_json = "1.0"
@@ -38,7 +38,7 @@ async-stream = "0.3"
 futures = "0.3"
 owo-colors = { version = "4.1", features = ["supports-colors"] }
 metrics = "0.24"
-metrics-exporter-prometheus = "0.16"
+metrics-exporter-prometheus = "0.18"
 
 [dev-dependencies]
 temp-env = "0.3"
