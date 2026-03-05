@@ -28,7 +28,10 @@ fn register_descriptions() {
     );
 
     // Gauges
-    describe_gauge!("lolcommits_images_total", "Total number of images in gallery");
+    describe_gauge!(
+        "lolcommits_images_total",
+        "Total number of images in gallery"
+    );
     describe_gauge!(
         "lolcommits_revision_cache_size",
         "Number of revisions in dedup cache"

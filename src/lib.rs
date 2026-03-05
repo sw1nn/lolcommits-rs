@@ -5,8 +5,8 @@ pub mod error;
 pub mod git;
 pub mod image_metadata;
 pub mod image_processor;
-pub mod segmentation;
 pub mod metrics;
+pub mod segmentation;
 pub mod server;
 
 use std::io::IsTerminal;

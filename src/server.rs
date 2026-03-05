@@ -138,7 +138,9 @@ pub fn create_router(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         )
-        .layer(axum::middleware::from_fn(crate::metrics::http_metrics_layer))
+        .layer(axum::middleware::from_fn(
+            crate::metrics::http_metrics_layer,
+        ))
         .with_state(state);
 
     // Build metrics route (outside middleware so scraping doesn't inflate counts)
