@@ -22,6 +22,14 @@ use tower_http::{
 
 use crate::{config, error::Result, git, image_metadata, image_processor};
 
+struct SseConnectionGuard;
+
+impl Drop for SseConnectionGuard {
+    fn drop(&mut self) {
+        crate::metrics::decrement_sse_connections();
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct ConfigResponse {
     gallery_title: String,
@@ -101,16 +109,20 @@ pub fn create_router(
     let (tx, _rx) = broadcast::channel(100);
 
     // Initialize revision cache from existing images
-    let revision_cache = match initialize_revision_cache() {
+    let (revision_cache, initial_cache_size) = match initialize_revision_cache() {
         Ok(cache) => {
-            tracing::info!(count = cache.len(), "Initialized revision cache");
-            Arc::new(RwLock::new(cache))
+            let len = cache.len();
+            tracing::info!(count = len, "Initialized revision cache");
+            (Arc::new(RwLock::new(cache)), len)
         }
         Err(e) => {
             tracing::warn!(error = %e, "Failed to initialize revision cache, starting with empty cache");
-            Arc::new(RwLock::new(HashSet::new()))
+            (Arc::new(RwLock::new(HashSet::new())), 0)
         }
     };
+
+    crate::metrics::set_images_total(initial_cache_size);
+    crate::metrics::set_revision_cache_size(initial_cache_size);
 
     let state = AppState { tx, revision_cache };
 
@@ -200,6 +212,8 @@ async fn sse_handler(
     let rx = state.tx.subscribe();
 
     let stream = async_stream::stream! {
+        crate::metrics::increment_sse_connections();
+        let _guard = SseConnectionGuard;
         let mut rx = rx;
         loop {
             match rx.recv().await {
@@ -303,6 +317,7 @@ async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart)
         repo = %metadata.repo_name,
         "Received upload, spawning async processor"
     );
+    crate::metrics::record_upload("accepted");
 
     // Spawn async processing task
     let tx = state.tx.clone();
@@ -310,6 +325,7 @@ async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart)
     tokio::spawn(async move {
         if let Err(e) = process_image_async(image_bytes, metadata, tx, revision_cache).await {
             tracing::error!(error = %e, "Failed to process image");
+            crate::metrics::record_upload("failed");
         }
     });
 
@@ -340,11 +356,13 @@ async fn process_image_async(
         let cache = revision_cache.read().await;
         if cache.contains(&metadata.revision) {
             tracing::info!(revision = %metadata.revision, "Revision already exists, skipping upload");
+            crate::metrics::record_upload("duplicate_skipped");
             return Ok(());
         }
     }
 
     // Decode image
+    let _timer = crate::metrics::ScopedTimer::image_processing();
     let image = image::load_from_memory(&image_bytes)?;
     tracing::debug!("Decoded image");
 
@@ -403,12 +421,15 @@ async fn process_image_async(
         .persist(&output_path)
         .map_err(|e| std::io::Error::other(e.to_string()))?;
     tracing::info!(path = %output_path.display(), "Saved lolcommit with metadata");
+    crate::metrics::record_upload("processed");
 
     // Add revision to cache
     {
         let mut cache = revision_cache.write().await;
         cache.insert(metadata.revision.clone());
         tracing::debug!(revision = %metadata.revision, "Added revision to cache");
+        crate::metrics::set_revision_cache_size(cache.len());
+        crate::metrics::increment_images_total();
     }
 
     // Broadcast new image event to SSE clients
