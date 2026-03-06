@@ -2,6 +2,20 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.12.0 - 2026-03-06
+#### Features
+- (**metrics**) instrument upload pipeline, gallery gauges, and SSE connections - (c4b2365) - Neale Swinnerton
+- (**metrics**) wire up /metrics endpoint and HTTP middleware - (d81dab0) - Neale Swinnerton
+- (**metrics**) add prometheus metrics module with recorder, descriptions, helpers, and middleware - (9573d5a) - Neale Swinnerton
+#### Build system
+- (**deps**) bump dependency versions - (20e89ab) - Neale Swinnerton
+#### Refactoring
+- standardize xdg config pattern - (af62fbf) - Neale Swinnerton
+#### Style
+- apply cargo fmt - (b205a2e) - Neale Swinnerton
+
+- - -
+
 ## v1.11.0 - 2026-01-15
 #### Build system
 - rename sw1nn-pkg-upload to sw1nn-pkg-ctl upload - (422bf22) - Neale Swinnerton
