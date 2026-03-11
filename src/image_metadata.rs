@@ -23,31 +23,31 @@ pub fn save_png_with_metadata<P: AsRef<Path>>(
     encoder.set_depth(png::BitDepth::Eight);
 
     // Add metadata as iTXt chunks (UTF-8 safe, unlike tEXt which is Latin-1 only)
-    encoder.add_itxt_chunk("lolcommit:revision".to_string(), metadata.revision.clone())?;
-    encoder.add_itxt_chunk("lolcommit:message".to_string(), metadata.message.clone())?;
-    encoder.add_itxt_chunk("lolcommit:type".to_string(), metadata.commit_type.clone())?;
+    encoder.add_itxt_chunk("lolcommit:Revision".to_string(), metadata.revision.clone())?;
+    encoder.add_itxt_chunk("lolcommit:Message".to_string(), metadata.message.clone())?;
+    encoder.add_itxt_chunk("lolcommit:Type".to_string(), metadata.commit_type.clone())?;
 
     if !metadata.scope.is_empty() {
-        encoder.add_itxt_chunk("lolcommit:scope".to_string(), metadata.scope.clone())?;
+        encoder.add_itxt_chunk("lolcommit:Scope".to_string(), metadata.scope.clone())?;
     }
 
     encoder.add_itxt_chunk(
-        "lolcommit:timestamp".to_string(),
+        "lolcommit:Timestamp".to_string(),
         metadata.timestamp.clone(),
     )?;
-    encoder.add_itxt_chunk("lolcommit:repo".to_string(), metadata.repo_name.clone())?;
-    encoder.add_itxt_chunk("lolcommit:branch".to_string(), metadata.branch_name.clone())?;
-    encoder.add_itxt_chunk("lolcommit:diff".to_string(), metadata.diff_stats_string())?;
+    encoder.add_itxt_chunk("lolcommit:Repo".to_string(), metadata.repo_name.clone())?;
+    encoder.add_itxt_chunk("lolcommit:Branch".to_string(), metadata.branch_name.clone())?;
+    encoder.add_itxt_chunk("lolcommit:Diff".to_string(), metadata.diff_stats_string())?;
     encoder.add_itxt_chunk(
-        "lolcommit:files_changed".to_string(),
+        "lolcommit:Files_changed".to_string(),
         metadata.stats.files_changed.to_string(),
     )?;
     encoder.add_itxt_chunk(
-        "lolcommit:insertions".to_string(),
+        "lolcommit:Insertions".to_string(),
         metadata.stats.insertions.to_string(),
     )?;
     encoder.add_itxt_chunk(
-        "lolcommit:deletions".to_string(),
+        "lolcommit:Deletions".to_string(),
         metadata.stats.deletions.to_string(),
     )?;
 
@@ -55,6 +55,15 @@ pub fn save_png_with_metadata<P: AsRef<Path>>(
     writer.write_image_data(&rgb_image)?;
 
     Ok(())
+}
+
+/// Remove a key from the map, trying the new capitalized key first,
+/// then falling back to the old lowercase key.
+fn remove_key(chunks: &mut HashMap<&str, String>, new_key: &str, old_key: &str) -> String {
+    chunks
+        .remove(new_key)
+        .or_else(|| chunks.remove(old_key))
+        .unwrap_or_default()
 }
 
 pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadata>> {
@@ -80,24 +89,25 @@ pub fn read_png_metadata<P: AsRef<Path>>(path: P) -> Result<Option<CommitMetadat
 
     tracing::debug!(?chunks, "Loaded PNG metadata chunks");
 
-    let revision = chunks.remove("lolcommit:revision").unwrap_or_default();
-    let message = chunks.remove("lolcommit:message").unwrap_or_default();
-    let commit_type = chunks.remove("lolcommit:type").unwrap_or_default();
-    let scope = chunks.remove("lolcommit:scope").unwrap_or_default();
-    let timestamp = chunks.remove("lolcommit:timestamp").unwrap_or_default();
-    let repo_name = chunks.remove("lolcommit:repo").unwrap_or_default();
-    let branch_name = chunks.remove("lolcommit:branch").unwrap_or_default();
-    let files_changed = chunks
-        .remove("lolcommit:files_changed")
-        .and_then(|s| s.parse().ok())
+    let revision = remove_key(&mut chunks, "lolcommit:Revision", "lolcommit:revision");
+    let message = remove_key(&mut chunks, "lolcommit:Message", "lolcommit:message");
+    let commit_type = remove_key(&mut chunks, "lolcommit:Type", "lolcommit:type");
+    let scope = remove_key(&mut chunks, "lolcommit:Scope", "lolcommit:scope");
+    let timestamp = remove_key(&mut chunks, "lolcommit:Timestamp", "lolcommit:timestamp");
+    let repo_name = remove_key(&mut chunks, "lolcommit:Repo", "lolcommit:repo");
+    let branch_name = remove_key(&mut chunks, "lolcommit:Branch", "lolcommit:branch");
+    let files_changed = remove_key(
+        &mut chunks,
+        "lolcommit:Files_changed",
+        "lolcommit:files_changed",
+    )
+    .parse()
+    .unwrap_or(0);
+    let insertions = remove_key(&mut chunks, "lolcommit:Insertions", "lolcommit:insertions")
+        .parse()
         .unwrap_or(0);
-    let insertions = chunks
-        .remove("lolcommit:insertions")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-    let deletions = chunks
-        .remove("lolcommit:deletions")
-        .and_then(|s| s.parse().ok())
+    let deletions = remove_key(&mut chunks, "lolcommit:Deletions", "lolcommit:deletions")
+        .parse()
         .unwrap_or(0);
 
     let found_any = !revision.is_empty() || !message.is_empty() || !commit_type.is_empty();
@@ -185,4 +195,97 @@ fn parse_timestamp(timestamp: &str) -> Option<String> {
     let datetime_str = format!("{}-{}-{} {}:{}:{}", year, month, day, hour, minute, second);
 
     Some(datetime_str)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::Result;
+    use crate::git::DiffStats;
+
+    #[test]
+    fn test_round_trip_new_keys() -> Result {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("test.png");
+
+        let image = image::DynamicImage::ImageRgba8(image::RgbaImage::new(1, 1));
+        let metadata = CommitMetadata {
+            path: std::path::PathBuf::new(),
+            revision: "abc1234".to_owned(),
+            message: "feat: add something".to_owned(),
+            commit_type: "feat".to_owned(),
+            scope: "core".to_owned(),
+            timestamp: "2024-01-15 12:34:56".to_owned(),
+            repo_name: "my-repo".to_owned(),
+            branch_name: "main".to_owned(),
+            stats: DiffStats {
+                files_changed: 3,
+                insertions: 42,
+                deletions: 7,
+            },
+        };
+
+        save_png_with_metadata(&image, &path, &metadata)?;
+        let read_back = read_png_metadata(&path)?;
+
+        let read_back = read_back.expect("metadata should be present");
+        assert_eq!(read_back.revision, metadata.revision);
+        assert_eq!(read_back.message, metadata.message);
+        assert_eq!(read_back.commit_type, metadata.commit_type);
+        assert_eq!(read_back.scope, metadata.scope);
+        assert_eq!(read_back.timestamp, metadata.timestamp);
+        assert_eq!(read_back.repo_name, metadata.repo_name);
+        assert_eq!(read_back.branch_name, metadata.branch_name);
+        assert_eq!(read_back.stats.files_changed, metadata.stats.files_changed);
+        assert_eq!(read_back.stats.insertions, metadata.stats.insertions);
+        assert_eq!(read_back.stats.deletions, metadata.stats.deletions);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reads_old_lowercase_keys() -> Result {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("old_style.png");
+
+        // Write a PNG with old lowercase keys directly
+        let file = File::create(&path)?;
+        let writer = BufWriter::new(file);
+        let mut encoder = Encoder::new(writer, 1, 1);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.add_itxt_chunk("lolcommit:revision".to_owned(), "def5678".to_owned())?;
+        encoder.add_itxt_chunk(
+            "lolcommit:message".to_owned(),
+            "fix: old style commit".to_owned(),
+        )?;
+        encoder.add_itxt_chunk("lolcommit:type".to_owned(), "fix".to_owned())?;
+        encoder.add_itxt_chunk("lolcommit:repo".to_owned(), "old-repo".to_owned())?;
+        encoder.add_itxt_chunk("lolcommit:branch".to_owned(), "develop".to_owned())?;
+        encoder.add_itxt_chunk(
+            "lolcommit:timestamp".to_owned(),
+            "2023-06-01 08:00:00".to_owned(),
+        )?;
+        encoder.add_itxt_chunk("lolcommit:files_changed".to_owned(), "5".to_owned())?;
+        encoder.add_itxt_chunk("lolcommit:insertions".to_owned(), "20".to_owned())?;
+        encoder.add_itxt_chunk("lolcommit:deletions".to_owned(), "3".to_owned())?;
+        let mut png_writer = encoder.write_header()?;
+        png_writer.write_image_data(&[0u8; 4])?;
+        drop(png_writer);
+
+        let read_back = read_png_metadata(&path)?;
+        let read_back = read_back.expect("metadata should be present for old-style keys");
+
+        assert_eq!(read_back.revision, "def5678");
+        assert_eq!(read_back.message, "fix: old style commit");
+        assert_eq!(read_back.commit_type, "fix");
+        assert_eq!(read_back.repo_name, "old-repo");
+        assert_eq!(read_back.branch_name, "develop");
+        assert_eq!(read_back.timestamp, "2023-06-01 08:00:00");
+        assert_eq!(read_back.stats.files_changed, 5);
+        assert_eq!(read_back.stats.insertions, 20);
+        assert_eq!(read_back.stats.deletions, 3);
+
+        Ok(())
+    }
 }
