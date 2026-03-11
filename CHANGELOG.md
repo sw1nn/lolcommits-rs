@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.13.0 - 2026-03-11
+#### Features
+- add lolcommits_fixup - (10342b0) - Neale Swinnerton
+
+- - -
+
 ## v1.12.0 - 2026-03-06
 #### Features
 - (**metrics**) instrument upload pipeline, gallery gauges, and SSE connections - (c4b2365) - Neale Swinnerton
