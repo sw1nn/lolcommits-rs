@@ -537,115 +537,93 @@ fn run_fixup(
 
         let (action, metadata) = plan_fix(&path, repos, keep_unresolved, guess);
 
-        match action {
+        // Extract rename fields shared by Fix, GuessedExact, GuessedProfile
+        let rename_fields = match &action {
             FixAction::Fix {
-                ref old_repo,
-                ref new_repo,
-                ref old_filename,
-                ref new_filename,
-            } => {
-                if new_repo == "unknown" {
-                    *unresolved_repos.entry(old_repo.clone()).or_default() += 1;
-                    println!("{} {filename}", "[unresolved]".red());
-                } else {
-                    println!("{} {filename}", "[fix]".green());
-                }
-                println!("  repo: {old_repo} -> {}", new_repo.cyan());
-                println!("  rename: {old_filename} -> {}", new_filename.cyan());
-
-                if apply {
-                    let mut updated = metadata.unwrap();
-                    updated.repo_name = new_repo.clone();
-                    let new_path = images_dir.join(new_filename);
-
-                    if new_path.exists() && new_path != path {
-                        eprintln!(
-                            "  {} target already exists, skipping: {}",
-                            "warning:".yellow(),
-                            new_path.display()
-                        );
-                        continue;
-                    }
-
-                    apply_fix(&path, &updated, &new_path)?;
-                    println!("  {}", "applied".green());
-                }
-                fix_count += 1;
+                old_repo,
+                new_repo,
+                old_filename,
+                new_filename,
             }
-            FixAction::GuessedExact {
-                ref old_repo,
-                ref new_repo,
-                ref old_filename,
-                ref new_filename,
-            } => {
-                println!("{} {filename}", "[guessed-exact]".green());
-                println!("  repo: {old_repo} -> {new_repo} (exact message match)");
-                println!("  rename: {old_filename} -> {}", new_filename.cyan());
-
-                if apply {
-                    let mut updated = metadata.unwrap();
-                    updated.repo_name = new_repo.clone();
-                    let new_path = images_dir.join(new_filename);
-
-                    if new_path.exists() && new_path != path {
-                        eprintln!(
-                            "  {} target already exists, skipping: {}",
-                            "warning:".yellow(),
-                            new_path.display()
-                        );
-                        continue;
-                    }
-
-                    apply_fix(&path, &updated, &new_path)?;
-                    println!("  {}", "applied".green());
-                }
-                guessed_exact_count += 1;
-            }
+            | FixAction::GuessedExact {
+                old_repo,
+                new_repo,
+                old_filename,
+                new_filename,
+            } => Some((old_repo, new_repo, old_filename, new_filename)),
             FixAction::GuessedProfile {
-                ref old_repo,
-                ref new_repo,
-                ref old_filename,
-                ref new_filename,
-                score,
-            } => {
-                println!("{} {filename}", "[guessed-profile]".yellow());
-                println!("  repo: {old_repo} -> {new_repo} (score: {score:.1})");
-                println!("  rename: {old_filename} -> {}", new_filename.cyan());
+                old_repo,
+                new_repo,
+                old_filename,
+                new_filename,
+                ..
+            } => Some((old_repo, new_repo, old_filename, new_filename)),
+            _ => None,
+        };
 
-                if apply {
-                    let mut updated = metadata.unwrap();
-                    updated.repo_name = new_repo.clone();
-                    let new_path = images_dir.join(new_filename);
-
-                    if new_path.exists() && new_path != path {
-                        eprintln!(
-                            "  {} target already exists, skipping: {}",
-                            "warning:".yellow(),
-                            new_path.display()
-                        );
-                        continue;
-                    }
-
-                    apply_fix(&path, &updated, &new_path)?;
-                    println!("  {}", "applied".green());
-                }
-                guessed_profile_count += 1;
+        // Print action-specific label and details
+        match &action {
+            FixAction::Fix { new_repo, .. } if new_repo == "unknown" => {
+                let (old_repo, _, _, _) = rename_fields.as_ref().unwrap();
+                *unresolved_repos.entry((*old_repo).clone()).or_default() += 1;
+                println!("{} {filename}", "[unresolved]".red());
+            }
+            FixAction::Fix { .. } => {
+                println!("{} {filename}", "[fix]".green());
+            }
+            FixAction::GuessedExact { .. } => {
+                println!("{} {filename}", "[guessed-exact]".green());
+            }
+            FixAction::GuessedProfile { score, .. } => {
+                println!(
+                    "{} {filename} (score: {score:.1})",
+                    "[guessed-profile]".yellow()
+                );
             }
             FixAction::KeysOnly => {
                 println!("{} {filename}", "[keys]".blue());
                 println!("  keys: lolcommit:revision -> lolcommit:Revision (and others)");
-
-                if apply {
-                    let updated = metadata.unwrap();
-                    apply_fix(&path, &updated, &path)?;
-                    println!("  {}", "applied".green());
-                }
-                keys_only_count += 1;
             }
             FixAction::Skip => {
                 tracing::debug!(filename, "No metadata, skipping");
-                skip_count += 1;
             }
+        }
+
+        // Apply rename actions (Fix, GuessedExact, GuessedProfile)
+        if let Some((old_repo, new_repo, old_filename, new_filename)) = rename_fields {
+            println!("  repo: {old_repo} -> {}", new_repo.cyan());
+            println!("  rename: {old_filename} -> {}", new_filename.cyan());
+
+            if apply && let Some(mut updated) = metadata {
+                updated.repo_name = new_repo.clone();
+                let new_path = images_dir.join(new_filename);
+
+                if new_path.exists() && new_path != path {
+                    eprintln!(
+                        "  {} target already exists, skipping: {}",
+                        "warning:".yellow(),
+                        new_path.display()
+                    );
+                } else {
+                    apply_fix(&path, &updated, &new_path)?;
+                    println!("  {}", "applied".green());
+                }
+            }
+
+            match &action {
+                FixAction::Fix { .. } => fix_count += 1,
+                FixAction::GuessedExact { .. } => guessed_exact_count += 1,
+                FixAction::GuessedProfile { .. } => guessed_profile_count += 1,
+                _ => unreachable!(),
+            }
+        } else if matches!(&action, FixAction::KeysOnly) {
+            if apply && let Some(updated) = metadata {
+                apply_fix(&path, &updated, &path)?;
+                println!("  {}", "applied".green());
+            }
+            keys_only_count += 1;
+        } else {
+            skip_count += 1;
         }
     }
 
