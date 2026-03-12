@@ -2,6 +2,25 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.14.0 - 2026-03-12
+#### Features
+- (**fixup**) add --no-guess and --glob CLI flags - (423cf58) - Neale Swinnerton
+- (**fixup**) extend FixAction with GuessedExact/GuessedProfile variants - (922d42b) - Neale Swinnerton
+- (**fixup**) add profile-based scoring for commit fingerprinting - (7a975d5) - Neale Swinnerton
+- (**fixup**) add exact message matching for commit fingerprinting - (9f240a4) - Neale Swinnerton
+- (**fixup**) add RepoProfile struct, stopwords, and tokenize function - (8384c26) - Neale Swinnerton
+#### Documentation
+- add commit fingerprinting implementation plan - (03c8c62) - Neale Swinnerton
+- address spec review feedback for commit fingerprinting design - (81ee253) - Neale Swinnerton
+- add commit fingerprinting design spec - (b85c379) - Neale Swinnerton
+#### Build system
+- (**deps**) add glob-match crate for filename filtering - (5b729b0) - Neale Swinnerton
+#### Refactoring
+- (**fixup**) deduplicate apply logic, fix missing cyan on guess output - (2a1b593) - Neale Swinnerton
+- (**fixup**) use imported HashMap instead of fully-qualified path - (6cf7ddd) - Neale Swinnerton
+
+- - -
+
 ## v1.13.0 - 2026-03-11
 #### Features
 - add lolcommits_fixup - (10342b0) - Neale Swinnerton
