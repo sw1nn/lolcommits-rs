@@ -482,6 +482,24 @@ fn apply_fix(
 
     temp_file.persist(new_path).map_err(|e| e.error)?;
 
+    // Set file mtime to the commit timestamp from metadata
+    if !metadata.timestamp.is_empty()
+        && let Ok(dt) =
+            chrono::NaiveDateTime::parse_from_str(&metadata.timestamp, "%Y-%m-%d %H:%M:%S")
+    {
+        let system_time =
+            std::time::UNIX_EPOCH + std::time::Duration::from_secs(dt.and_utc().timestamp() as u64);
+        let times = std::fs::FileTimes::new().set_modified(system_time);
+        std::fs::File::options()
+            .write(true)
+            .open(new_path)?
+            .set_times(times)
+            .inspect_err(|e| {
+                tracing::warn!(path = %new_path.display(), error = %e, "Failed to set file timestamp");
+            })
+            .ok();
+    }
+
     // If the new path differs from the old, remove the old file
     if path != new_path && path.exists() {
         std::fs::remove_file(path)?;
