@@ -1,6 +1,7 @@
 use clap::Parser;
 use git2::{Oid, Repository};
 use owo_colors::OwoColorize;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use sw1nn_lolcommits_rs::error::Result;
 
@@ -47,6 +48,113 @@ where
 struct RepoInfo {
     repo: Repository,
     remote_name: String,
+    // profile will be used in upcoming fingerprinting tasks
+    #[allow(dead_code)]
+    profile: RepoProfile,
+}
+
+const STOPWORDS: &[&str] = &[
+    "the", "an", "and", "or", "to", "for", "in", "of", "with", "from", "merge", "branch", "commit",
+    "update", "add", "remove", "change", "use", "new", "set", "when", "not", "into", "this",
+    "that", "be", "is", "it", "on", "at", "by",
+];
+
+struct RepoProfile {
+    scopes: HashMap<String, usize>,
+    types: HashMap<String, usize>,
+    tokens: HashMap<String, usize>,
+    messages: HashSet<String>,
+    subjects: HashSet<String>,
+    commit_count: usize,
+}
+
+impl RepoProfile {
+    fn new() -> Self {
+        Self {
+            scopes: HashMap::new(),
+            types: HashMap::new(),
+            tokens: HashMap::new(),
+            messages: HashSet::new(),
+            subjects: HashSet::new(),
+            commit_count: 0,
+        }
+    }
+}
+
+fn tokenize(text: &str) -> HashSet<String> {
+    text.split(|c: char| c.is_ascii_whitespace() || c.is_ascii_punctuation())
+        .map(|t| t.to_lowercase())
+        .filter(|t| t.len() >= 2)
+        .filter(|t| !t.chars().all(|c| c.is_ascii_digit()))
+        .filter(|t| !STOPWORDS.contains(&t.as_str()))
+        .collect()
+}
+
+fn build_repo_profile(repo: &Repository) -> RepoProfile {
+    let mut profile = RepoProfile::new();
+
+    let mut revwalk = match repo.revwalk() {
+        Ok(rw) => rw,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to create revwalk");
+            return profile;
+        }
+    };
+
+    // Push all local branch heads
+    if let Err(e) = revwalk.push_glob("refs/heads/*") {
+        tracing::warn!(error = %e, "Failed to push branch refs");
+        return profile;
+    }
+
+    for oid in revwalk.flatten() {
+        let commit = match repo.find_commit(oid) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let message = match commit.message() {
+            Some(m) => m.trim().to_owned(),
+            None => continue,
+        };
+
+        let subject = message.lines().next().unwrap_or(&message).to_owned();
+
+        profile.messages.insert(message.clone());
+        profile.subjects.insert(subject.clone());
+
+        // Only extract type/scope from conventional commits (must have ':')
+        if subject.contains(':') {
+            let commit_type = sw1nn_lolcommits_rs::git::parse_commit_type(&subject);
+            if commit_type != "commit" {
+                *profile.types.entry(commit_type).or_default() += 1;
+            }
+
+            let scope = sw1nn_lolcommits_rs::git::parse_commit_scope(&subject);
+            if !scope.is_empty() {
+                *profile.scopes.entry(scope).or_default() += 1;
+            }
+        }
+
+        // Tokenize the stripped message (without conventional prefix)
+        let stripped = sw1nn_lolcommits_rs::git::strip_commit_prefix(&subject);
+        for token in tokenize(&stripped) {
+            *profile.tokens.entry(token).or_default() += 1;
+        }
+
+        profile.commit_count += 1;
+    }
+
+    tracing::debug!(
+        commit_count = profile.commit_count,
+        scope_count = profile.scopes.len(),
+        type_count = profile.types.len(),
+        token_count = profile.tokens.len(),
+        message_count = profile.messages.len(),
+        "Built repo profile"
+    );
+
+    profile
 }
 
 const SKIP_DIRS: &[&str] = &["target", "node_modules", ".git"];
@@ -106,7 +214,13 @@ fn walk_for_repos(dir: &Path, repos: &mut Vec<RepoInfo>) {
                     )
                     .unwrap_or_else(|| name.to_owned());
 
-                    repos.push(RepoInfo { repo, remote_name });
+                    let profile = build_repo_profile(&repo);
+                    tracing::debug!(remote_name, commits = profile.commit_count, "Built profile");
+                    repos.push(RepoInfo {
+                        repo,
+                        remote_name,
+                        profile,
+                    });
                 }
                 Err(e) => {
                     tracing::warn!(path = %path.display(), error = %e, "Cannot open repo");
@@ -364,4 +478,139 @@ fn main() -> Result<()> {
     run_fixup(&args.images_dir, &repos, &args.keep_unresolved, args.apply)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tokenize_basic() -> Result<()> {
+        let tokens = tokenize("add webcam capture support");
+        assert!(tokens.contains("webcam"));
+        assert!(tokens.contains("capture"));
+        assert!(tokens.contains("support"));
+        assert!(!tokens.contains("add"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_tokenize_strips_short_tokens() -> Result<()> {
+        let tokens = tokenize("a b cd ef");
+        assert!(!tokens.contains("a"));
+        assert!(!tokens.contains("b"));
+        assert!(tokens.contains("cd"));
+        assert!(tokens.contains("ef"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_tokenize_strips_pure_numbers() -> Result<()> {
+        let tokens = tokenize("bump version 42 to v2");
+        assert!(!tokens.contains("42"));
+        assert!(tokens.contains("v2"));
+        assert!(tokens.contains("version"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_tokenize_lowercases() -> Result<()> {
+        let tokens = tokenize("OpenCV Camera Module");
+        assert!(tokens.contains("opencv"));
+        assert!(tokens.contains("camera"));
+        assert!(tokens.contains("module"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_tokenize_splits_on_punctuation() -> Result<()> {
+        let tokens = tokenize("fix(server): handle timeout/retry");
+        assert!(tokens.contains("server"));
+        assert!(tokens.contains("handle"));
+        assert!(tokens.contains("timeout"));
+        assert!(tokens.contains("retry"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_build_profile_from_repo() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let repo = git2::Repository::init(dir.path())?;
+
+        let mut config = repo.config()?;
+        config.set_str("user.name", "Test")?;
+        config.set_str("user.email", "test@test.com")?;
+
+        let sig = repo.signature()?;
+
+        let mut index = repo.index()?;
+        let tree_id = index.write_tree()?;
+        let tree = repo.find_tree(tree_id)?;
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "feat(server): add upload endpoint",
+            &tree,
+            &[],
+        )?;
+
+        let parent = repo.head()?.peel_to_commit()?;
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "fix(server): handle timeout",
+            &tree,
+            &[&parent],
+        )?;
+
+        let parent = repo.head()?.peel_to_commit()?;
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "feat(capture): add webcam support",
+            &tree,
+            &[&parent],
+        )?;
+
+        let parent = repo.head()?.peel_to_commit()?;
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "non-conventional message about cameras",
+            &tree,
+            &[&parent],
+        )?;
+
+        let profile = build_repo_profile(&repo);
+        assert_eq!(profile.commit_count, 4);
+
+        assert_eq!(profile.scopes.get("server"), Some(&2));
+        assert_eq!(profile.scopes.get("capture"), Some(&1));
+
+        assert_eq!(profile.types.get("feat"), Some(&2));
+        assert_eq!(profile.types.get("fix"), Some(&1));
+        assert!(!profile.types.contains_key("commit"));
+
+        assert!(
+            profile
+                .messages
+                .contains("feat(server): add upload endpoint")
+        );
+        assert!(
+            profile
+                .subjects
+                .contains("feat(server): add upload endpoint")
+        );
+
+        assert!(profile.tokens.contains_key("upload"));
+        assert!(profile.tokens.contains_key("endpoint"));
+        assert!(profile.tokens.contains_key("webcam"));
+        assert!(profile.tokens.contains_key("cameras"));
+
+        Ok(())
+    }
 }
