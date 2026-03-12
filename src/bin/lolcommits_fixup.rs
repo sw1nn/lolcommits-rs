@@ -343,8 +343,7 @@ fn run_fixup(
     let mut fix_count = 0u32;
     let mut keys_only_count = 0u32;
     let mut skip_count = 0u32;
-    let mut unresolved_repos: std::collections::HashMap<String, u32> =
-        std::collections::HashMap::new();
+    let mut unresolved_repos: HashMap<String, u32> = HashMap::new();
 
     for entry in &entries {
         let path = entry.path();
