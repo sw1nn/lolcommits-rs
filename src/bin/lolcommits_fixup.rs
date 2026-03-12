@@ -157,6 +157,36 @@ fn build_repo_profile(repo: &Repository) -> RepoProfile {
     profile
 }
 
+/// Returns Some(repo_name) if exactly one repo matches, None if zero or ambiguous.
+#[allow(dead_code)]
+fn find_exact_match<'a>(repos: &'a [RepoInfo], message: &str) -> Option<&'a str> {
+    let trimmed = message.trim();
+
+    // Tier 1a: full message match
+    let full_matches: Vec<_> = repos
+        .iter()
+        .filter(|r| r.profile.messages.contains(trimmed))
+        .collect();
+
+    match full_matches.len() {
+        1 => return Some(&full_matches[0].remote_name),
+        n if n > 1 => return None, // Ambiguous
+        _ => {}
+    }
+
+    // Tier 1b: subject line match
+    let subject = trimmed.lines().next().unwrap_or(trimmed);
+    let subject_matches: Vec<_> = repos
+        .iter()
+        .filter(|r| r.profile.subjects.contains(subject))
+        .collect();
+
+    match subject_matches.len() {
+        1 => Some(&subject_matches[0].remote_name),
+        _ => None, // Zero or ambiguous
+    }
+}
+
 const SKIP_DIRS: &[&str] = &["target", "node_modules", ".git"];
 
 fn discover_repos(workspace: &Path) -> Vec<RepoInfo> {
@@ -610,6 +640,159 @@ mod tests {
         assert!(profile.tokens.contains_key("webcam"));
         assert!(profile.tokens.contains_key("cameras"));
 
+        Ok(())
+    }
+
+    fn make_test_repos() -> Result<(tempfile::TempDir, tempfile::TempDir, Vec<RepoInfo>)> {
+        // Repo A: has conventional commits with server scope
+        let dir_a = tempfile::tempdir()?;
+        let repo_a = git2::Repository::init(dir_a.path())?;
+        {
+            let mut config = repo_a.config()?;
+            config.set_str("user.name", "Test")?;
+            config.set_str("user.email", "test@test.com")?;
+            let sig = repo_a.signature()?;
+            let mut index = repo_a.index()?;
+            let tree_id = index.write_tree()?;
+            let tree = repo_a.find_tree(tree_id)?;
+            repo_a.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "feat(server): add upload endpoint",
+                &tree,
+                &[],
+            )?;
+            let parent = repo_a.head()?.peel_to_commit()?;
+            repo_a.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "fix(server): handle timeout",
+                &tree,
+                &[&parent],
+            )?;
+        }
+
+        // Repo B: has conventional commits with capture scope
+        let dir_b = tempfile::tempdir()?;
+        let repo_b = git2::Repository::init(dir_b.path())?;
+        {
+            let mut config = repo_b.config()?;
+            config.set_str("user.name", "Test")?;
+            config.set_str("user.email", "test@test.com")?;
+            let sig = repo_b.signature()?;
+            let mut index = repo_b.index()?;
+            let tree_id = index.write_tree()?;
+            let tree = repo_b.find_tree(tree_id)?;
+            repo_b.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "feat(capture): add webcam support",
+                &tree,
+                &[],
+            )?;
+            let parent = repo_b.head()?.peel_to_commit()?;
+            repo_b.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "fix(capture): fix camera detection",
+                &tree,
+                &[&parent],
+            )?;
+        }
+
+        let profile_a = build_repo_profile(&repo_a);
+        let profile_b = build_repo_profile(&repo_b);
+
+        let repos = vec![
+            RepoInfo {
+                repo: repo_a,
+                remote_name: "repo-a".to_owned(),
+                profile: profile_a,
+            },
+            RepoInfo {
+                repo: repo_b,
+                remote_name: "repo-b".to_owned(),
+                profile: profile_b,
+            },
+        ];
+
+        Ok((dir_a, dir_b, repos))
+    }
+
+    #[test]
+    fn test_exact_match_full_message() -> Result<()> {
+        let (_da, _db, repos) = make_test_repos()?;
+        let result = find_exact_match(&repos, "feat(server): add upload endpoint");
+        assert_eq!(result, Some("repo-a"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_exact_match_subject_fallback() -> Result<()> {
+        let (_da, _db, repos) = make_test_repos()?;
+        let result = find_exact_match(&repos, "fix(capture): fix camera detection");
+        assert_eq!(result, Some("repo-b"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_exact_match_no_match() -> Result<()> {
+        let (_da, _db, repos) = make_test_repos()?;
+        let result = find_exact_match(&repos, "docs: update readme");
+        assert_eq!(result, None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_exact_match_ambiguous() -> Result<()> {
+        let dir_a = tempfile::tempdir()?;
+        let repo_a = git2::Repository::init(dir_a.path())?;
+        {
+            let mut config = repo_a.config()?;
+            config.set_str("user.name", "Test")?;
+            config.set_str("user.email", "test@test.com")?;
+            let sig = repo_a.signature()?;
+            let mut index = repo_a.index()?;
+            let tree_id = index.write_tree()?;
+            let tree = repo_a.find_tree(tree_id)?;
+            repo_a.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])?;
+        }
+
+        let dir_b = tempfile::tempdir()?;
+        let repo_b = git2::Repository::init(dir_b.path())?;
+        {
+            let mut config = repo_b.config()?;
+            config.set_str("user.name", "Test")?;
+            config.set_str("user.email", "test@test.com")?;
+            let sig = repo_b.signature()?;
+            let mut index = repo_b.index()?;
+            let tree_id = index.write_tree()?;
+            let tree = repo_b.find_tree(tree_id)?;
+            repo_b.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])?;
+        }
+
+        let profile_a = build_repo_profile(&repo_a);
+        let profile_b = build_repo_profile(&repo_b);
+
+        let repos = vec![
+            RepoInfo {
+                repo: repo_a,
+                remote_name: "repo-a".to_owned(),
+                profile: profile_a,
+            },
+            RepoInfo {
+                repo: repo_b,
+                remote_name: "repo-b".to_owned(),
+                profile: profile_b,
+            },
+        ];
+
+        let result = find_exact_match(&repos, "Initial commit");
+        assert_eq!(result, None); // Ambiguous -> None
         Ok(())
     }
 }
