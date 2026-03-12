@@ -10,6 +10,9 @@ pub mod segmentation;
 pub mod server;
 
 use std::io::IsTerminal;
+
+/// Timestamp format used in commit metadata (both writing and parsing)
+pub const TIMESTAMP_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Log output destination

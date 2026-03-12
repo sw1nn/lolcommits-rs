@@ -78,7 +78,9 @@ pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()
     let commit_type = git::parse_commit_type(&message);
     let first_line = message.lines().next().unwrap_or(&message);
     let scope = git::parse_commit_scope(first_line);
-    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let timestamp = chrono::Local::now()
+        .format(crate::TIMESTAMP_FORMAT)
+        .to_string();
 
     // Create metadata for upload
     let metadata = UploadMetadata {

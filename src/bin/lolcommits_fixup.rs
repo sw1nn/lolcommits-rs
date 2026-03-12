@@ -484,11 +484,13 @@ fn apply_fix(
 
     // Set file mtime to the commit timestamp from metadata
     if !metadata.timestamp.is_empty()
-        && let Ok(dt) =
-            chrono::NaiveDateTime::parse_from_str(&metadata.timestamp, "%Y-%m-%d %H:%M:%S")
+        && let Ok(dt) = chrono::NaiveDateTime::parse_from_str(
+            &metadata.timestamp,
+            sw1nn_lolcommits_rs::TIMESTAMP_FORMAT,
+        )
     {
-        let system_time =
-            std::time::UNIX_EPOCH + std::time::Duration::from_secs(dt.and_utc().timestamp() as u64);
+        let unix_secs: u64 = dt.and_utc().timestamp().try_into().unwrap_or(0);
+        let system_time = std::time::UNIX_EPOCH + std::time::Duration::from_secs(unix_secs);
         let times = std::fs::FileTimes::new().set_modified(system_time);
         std::fs::File::options()
             .write(true)
