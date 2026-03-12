@@ -48,8 +48,6 @@ where
 struct RepoInfo {
     repo: Repository,
     remote_name: String,
-    // profile will be used in upcoming fingerprinting tasks
-    #[allow(dead_code)]
     profile: RepoProfile,
 }
 
@@ -158,7 +156,6 @@ fn build_repo_profile(repo: &Repository) -> RepoProfile {
 }
 
 /// Returns Some(repo_name) if exactly one repo matches, None if zero or ambiguous.
-#[allow(dead_code)]
 fn find_exact_match<'a>(repos: &'a [RepoInfo], message: &str) -> Option<&'a str> {
     let trimmed = message.trim();
 
@@ -187,18 +184,12 @@ fn find_exact_match<'a>(repos: &'a [RepoInfo], message: &str) -> Option<&'a str>
     }
 }
 
-#[allow(dead_code)]
 const SCOPE_WEIGHT: f64 = 5.0;
-#[allow(dead_code)]
 const TOKEN_WEIGHT: f64 = 3.0;
-#[allow(dead_code)]
 const TYPE_WEIGHT: f64 = 1.0;
-#[allow(dead_code)]
 const MIN_SCORE_THRESHOLD: f64 = 3.0;
-#[allow(dead_code)]
 const AMBIGUITY_RATIO: f64 = 0.9;
 
-#[allow(dead_code)]
 fn score_commit(profile: &RepoProfile, message: &str) -> f64 {
     let subject = message.lines().next().unwrap_or(message);
     let has_colon = subject.contains(':');
@@ -241,7 +232,6 @@ fn score_commit(profile: &RepoProfile, message: &str) -> f64 {
 }
 
 /// Returns Some((repo_name, score)) if a confident match is found.
-#[allow(dead_code)]
 fn find_profile_match<'a>(repos: &'a [RepoInfo], message: &str) -> Option<(&'a str, f64)> {
     if repos.is_empty() {
         return None;
@@ -362,6 +352,19 @@ enum FixAction {
         old_filename: String,
         new_filename: String,
     },
+    GuessedExact {
+        old_repo: String,
+        new_repo: String,
+        old_filename: String,
+        new_filename: String,
+    },
+    GuessedProfile {
+        old_repo: String,
+        new_repo: String,
+        old_filename: String,
+        new_filename: String,
+        score: f64,
+    },
     KeysOnly,
     Skip,
 }
@@ -370,6 +373,7 @@ fn plan_fix(
     path: &Path,
     repos: &[RepoInfo],
     keep_unresolved: &[String],
+    guess: bool,
 ) -> (FixAction, Option<sw1nn_lolcommits_rs::git::CommitMetadata>) {
     let metadata = match sw1nn_lolcommits_rs::image_metadata::read_png_metadata(path) {
         Ok(Some(m)) => m,
@@ -386,20 +390,59 @@ fn plan_fix(
 
     let found_repo = find_commit_repo(repos, &metadata.revision);
 
-    let new_repo_name = match found_repo {
-        Some(info) if info.remote_name != metadata.repo_name => Some(info.remote_name.clone()),
-        None if !keep_unresolved.contains(&metadata.repo_name) => Some("unknown".to_owned()),
-        _ => None,
-    };
+    let filename = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
 
-    match new_repo_name {
-        Some(new_repo) => {
-            let filename = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or_default();
+    match found_repo {
+        // SHA found in a repo — definitive fix
+        Some(info) if info.remote_name != metadata.repo_name => {
+            let new_filename = filename.replacen(&metadata.repo_name, &info.remote_name, 1);
+            (
+                FixAction::Fix {
+                    old_repo: metadata.repo_name.clone(),
+                    new_repo: info.remote_name.clone(),
+                    old_filename: filename.to_owned(),
+                    new_filename,
+                },
+                Some(metadata),
+            )
+        }
+        Some(_) => (FixAction::KeysOnly, Some(metadata)),
+        None if keep_unresolved.contains(&metadata.repo_name) => {
+            (FixAction::KeysOnly, Some(metadata))
+        }
+        None => {
+            if guess {
+                if let Some(guessed_repo) = find_exact_match(repos, &metadata.message) {
+                    let new_filename = filename.replacen(&metadata.repo_name, guessed_repo, 1);
+                    return (
+                        FixAction::GuessedExact {
+                            old_repo: metadata.repo_name.clone(),
+                            new_repo: guessed_repo.to_owned(),
+                            old_filename: filename.to_owned(),
+                            new_filename,
+                        },
+                        Some(metadata),
+                    );
+                }
+                if let Some((guessed_repo, score)) = find_profile_match(repos, &metadata.message) {
+                    let new_filename = filename.replacen(&metadata.repo_name, guessed_repo, 1);
+                    return (
+                        FixAction::GuessedProfile {
+                            old_repo: metadata.repo_name.clone(),
+                            new_repo: guessed_repo.to_owned(),
+                            old_filename: filename.to_owned(),
+                            new_filename,
+                            score,
+                        },
+                        Some(metadata),
+                    );
+                }
+            }
+            let new_repo = "unknown".to_owned();
             let new_filename = filename.replacen(&metadata.repo_name, &new_repo, 1);
-
             (
                 FixAction::Fix {
                     old_repo: metadata.repo_name.clone(),
@@ -410,7 +453,6 @@ fn plan_fix(
                 Some(metadata),
             )
         }
-        None => (FixAction::KeysOnly, Some(metadata)),
     }
 }
 
@@ -443,6 +485,7 @@ fn run_fixup(
     repos: &[RepoInfo],
     keep_unresolved: &[String],
     apply: bool,
+    guess: bool,
 ) -> Result<()> {
     let mut entries: Vec<_> = std::fs::read_dir(images_dir)?
         .flatten()
@@ -455,6 +498,8 @@ fn run_fixup(
     entries.sort_by_key(|e| e.file_name());
 
     let mut fix_count = 0u32;
+    let mut guessed_exact_count = 0u32;
+    let mut guessed_profile_count = 0u32;
     let mut keys_only_count = 0u32;
     let mut skip_count = 0u32;
     let mut unresolved_repos: HashMap<String, u32> = HashMap::new();
@@ -466,7 +511,7 @@ fn run_fixup(
             .and_then(|n| n.to_str())
             .unwrap_or_default();
 
-        let (action, metadata) = plan_fix(&path, repos, keep_unresolved);
+        let (action, metadata) = plan_fix(&path, repos, keep_unresolved, guess);
 
         match action {
             FixAction::Fix {
@@ -477,9 +522,10 @@ fn run_fixup(
             } => {
                 if new_repo == "unknown" {
                     *unresolved_repos.entry(old_repo.clone()).or_default() += 1;
+                    println!("{} {filename}", "[unresolved]".red());
+                } else {
+                    println!("{} {filename}", "[fix]".green());
                 }
-
-                println!("{} {filename}", "[fix]".green());
                 println!("  repo: {old_repo} -> {}", new_repo.cyan());
                 println!("  rename: {old_filename} -> {}", new_filename.cyan());
 
@@ -502,6 +548,65 @@ fn run_fixup(
                 }
                 fix_count += 1;
             }
+            FixAction::GuessedExact {
+                ref old_repo,
+                ref new_repo,
+                ref old_filename,
+                ref new_filename,
+            } => {
+                println!("{} {filename}", "[guessed-exact]".green());
+                println!("  repo: {old_repo} -> {new_repo} (exact message match)");
+                println!("  rename: {old_filename} -> {}", new_filename.cyan());
+
+                if apply {
+                    let mut updated = metadata.unwrap();
+                    updated.repo_name = new_repo.clone();
+                    let new_path = images_dir.join(new_filename);
+
+                    if new_path.exists() && new_path != path {
+                        eprintln!(
+                            "  {} target already exists, skipping: {}",
+                            "warning:".yellow(),
+                            new_path.display()
+                        );
+                        continue;
+                    }
+
+                    apply_fix(&path, &updated, &new_path)?;
+                    println!("  {}", "applied".green());
+                }
+                guessed_exact_count += 1;
+            }
+            FixAction::GuessedProfile {
+                ref old_repo,
+                ref new_repo,
+                ref old_filename,
+                ref new_filename,
+                score,
+            } => {
+                println!("{} {filename}", "[guessed-profile]".yellow());
+                println!("  repo: {old_repo} -> {new_repo} (score: {score:.1})");
+                println!("  rename: {old_filename} -> {}", new_filename.cyan());
+
+                if apply {
+                    let mut updated = metadata.unwrap();
+                    updated.repo_name = new_repo.clone();
+                    let new_path = images_dir.join(new_filename);
+
+                    if new_path.exists() && new_path != path {
+                        eprintln!(
+                            "  {} target already exists, skipping: {}",
+                            "warning:".yellow(),
+                            new_path.display()
+                        );
+                        continue;
+                    }
+
+                    apply_fix(&path, &updated, &new_path)?;
+                    println!("  {}", "applied".green());
+                }
+                guessed_profile_count += 1;
+            }
             FixAction::KeysOnly => {
                 println!("{} {filename}", "[keys]".blue());
                 println!("  keys: lolcommit:revision -> lolcommit:Revision (and others)");
@@ -523,11 +628,11 @@ fn run_fixup(
     println!();
     if apply {
         println!(
-            "Done: {fix_count} repo fixes, {keys_only_count} key-only updates, {skip_count} skipped"
+            "Done: {fix_count} repo fixes, {guessed_exact_count} guessed-exact, {guessed_profile_count} guessed-profile, {keys_only_count} key-only updates, {skip_count} skipped"
         );
     } else {
         println!(
-            "Dry run: {fix_count} repo fixes, {keys_only_count} key-only updates, {skip_count} skipped. Pass {} to write changes.",
+            "Dry run: {fix_count} repo fixes, {guessed_exact_count} guessed-exact, {guessed_profile_count} guessed-profile, {keys_only_count} key-only updates, {skip_count} skipped. Pass {} to write changes.",
             "--apply".cyan()
         );
     }
@@ -588,7 +693,13 @@ fn main() -> Result<()> {
         eprintln!("Warning: no git repos found under {}", workspace.display());
     }
 
-    run_fixup(&args.images_dir, &repos, &args.keep_unresolved, args.apply)?;
+    run_fixup(
+        &args.images_dir,
+        &repos,
+        &args.keep_unresolved,
+        args.apply,
+        true,
+    )?;
 
     Ok(())
 }
@@ -921,6 +1032,120 @@ mod tests {
         // "feat" exists in both, no scope, no distinctive tokens
         let result = find_profile_match(&repos, "feat: something generic");
         assert_eq!(result, None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_plan_fix_guesses_exact_match() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let repo = git2::Repository::init(dir.path())?;
+        {
+            let mut config = repo.config()?;
+            config.set_str("user.name", "Test")?;
+            config.set_str("user.email", "test@test.com")?;
+            let sig = repo.signature()?;
+            let mut index = repo.index()?;
+            let tree_id = index.write_tree()?;
+            let tree = repo.find_tree(tree_id)?;
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "feat(server): add upload endpoint",
+                &tree,
+                &[],
+            )?;
+        }
+
+        let profile = build_repo_profile(&repo);
+        let repos = vec![RepoInfo {
+            repo,
+            remote_name: "my-project".to_owned(),
+            profile,
+        }];
+
+        let img_dir = tempfile::tempdir()?;
+        let img_path = img_dir.path().join("old-repo-20260301-120000-deadbeef.png");
+        let image = image::DynamicImage::ImageRgba8(image::RgbaImage::new(1, 1));
+        let metadata = sw1nn_lolcommits_rs::git::CommitMetadata {
+            path: std::path::PathBuf::new(),
+            revision: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_owned(),
+            message: "feat(server): add upload endpoint".to_owned(),
+            commit_type: "feat".to_owned(),
+            scope: "server".to_owned(),
+            timestamp: "2026-03-01 12:00:00".to_owned(),
+            repo_name: "old-repo".to_owned(),
+            branch_name: "main".to_owned(),
+            stats: sw1nn_lolcommits_rs::git::DiffStats {
+                files_changed: 0,
+                insertions: 0,
+                deletions: 0,
+            },
+        };
+        sw1nn_lolcommits_rs::image_metadata::save_png_with_metadata(&image, &img_path, &metadata)?;
+
+        let (action, _) = plan_fix(&img_path, &repos, &[], true);
+        assert!(matches!(
+            action,
+            FixAction::GuessedExact { ref new_repo, .. } if new_repo == "my-project"
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn test_plan_fix_no_guess_marks_unknown() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let repo = git2::Repository::init(dir.path())?;
+        {
+            let mut config = repo.config()?;
+            config.set_str("user.name", "Test")?;
+            config.set_str("user.email", "test@test.com")?;
+            let sig = repo.signature()?;
+            let mut index = repo.index()?;
+            let tree_id = index.write_tree()?;
+            let tree = repo.find_tree(tree_id)?;
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "feat(server): add upload endpoint",
+                &tree,
+                &[],
+            )?;
+        }
+
+        let profile = build_repo_profile(&repo);
+        let repos = vec![RepoInfo {
+            repo,
+            remote_name: "my-project".to_owned(),
+            profile,
+        }];
+
+        let img_dir = tempfile::tempdir()?;
+        let img_path = img_dir.path().join("old-repo-20260301-120000-deadbeef.png");
+        let image = image::DynamicImage::ImageRgba8(image::RgbaImage::new(1, 1));
+        let metadata = sw1nn_lolcommits_rs::git::CommitMetadata {
+            path: std::path::PathBuf::new(),
+            revision: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_owned(),
+            message: "feat(server): add upload endpoint".to_owned(),
+            commit_type: "feat".to_owned(),
+            scope: "server".to_owned(),
+            timestamp: "2026-03-01 12:00:00".to_owned(),
+            repo_name: "old-repo".to_owned(),
+            branch_name: "main".to_owned(),
+            stats: sw1nn_lolcommits_rs::git::DiffStats {
+                files_changed: 0,
+                insertions: 0,
+                deletions: 0,
+            },
+        };
+        sw1nn_lolcommits_rs::image_metadata::save_png_with_metadata(&image, &img_path, &metadata)?;
+
+        let (action, _) = plan_fix(&img_path, &repos, &[], false);
+        assert!(matches!(
+            action,
+            FixAction::Fix { ref new_repo, .. } if new_repo == "unknown"
+        ));
         Ok(())
     }
 }
