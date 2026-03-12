@@ -30,6 +30,16 @@ struct Args {
         help = "Keep these repo names even when commit is unresolved (repeatable)"
     )]
     keep_unresolved: Vec<String>,
+
+    #[arg(long, action = clap::ArgAction::SetTrue, help = "Disable commit fingerprinting (all unresolved -> 'unknown')")]
+    no_guess: bool,
+
+    #[arg(
+        long,
+        value_name = "PATTERN",
+        help = "Filter image files by filename glob pattern (e.g. 'unknown-*')"
+    )]
+    glob: Option<String>,
 }
 
 fn expand_tilde<S>(path: S) -> PathBuf
@@ -486,6 +496,7 @@ fn run_fixup(
     keep_unresolved: &[String],
     apply: bool,
     guess: bool,
+    glob_pattern: Option<&str>,
 ) -> Result<()> {
     let mut entries: Vec<_> = std::fs::read_dir(images_dir)?
         .flatten()
@@ -496,6 +507,19 @@ fn run_fixup(
         })
         .collect();
     entries.sort_by_key(|e| e.file_name());
+
+    let entries: Vec<_> = if let Some(pattern) = glob_pattern {
+        entries
+            .into_iter()
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .is_some_and(|name| glob_match::glob_match(pattern, name))
+            })
+            .collect()
+    } else {
+        entries
+    };
 
     let mut fix_count = 0u32;
     let mut guessed_exact_count = 0u32;
@@ -698,7 +722,8 @@ fn main() -> Result<()> {
         &repos,
         &args.keep_unresolved,
         args.apply,
-        true,
+        !args.no_guess,
+        args.glob.as_deref(),
     )?;
 
     Ok(())
@@ -1090,6 +1115,20 @@ mod tests {
             FixAction::GuessedExact { ref new_repo, .. } if new_repo == "my-project"
         ));
         Ok(())
+    }
+
+    #[test]
+    fn test_glob_match_filters_filenames() {
+        assert!(glob_match::glob_match(
+            "unknown-*",
+            "unknown-20260301-abc.png"
+        ));
+        assert!(!glob_match::glob_match(
+            "unknown-*",
+            "my-repo-20260301-abc.png"
+        ));
+        assert!(glob_match::glob_match("*.png", "anything.png"));
+        assert!(!glob_match::glob_match("*.png", "anything.jpg"));
     }
 
     #[test]
