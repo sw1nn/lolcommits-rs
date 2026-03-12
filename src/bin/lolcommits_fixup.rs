@@ -187,6 +187,90 @@ fn find_exact_match<'a>(repos: &'a [RepoInfo], message: &str) -> Option<&'a str>
     }
 }
 
+#[allow(dead_code)]
+const SCOPE_WEIGHT: f64 = 5.0;
+#[allow(dead_code)]
+const TOKEN_WEIGHT: f64 = 3.0;
+#[allow(dead_code)]
+const TYPE_WEIGHT: f64 = 1.0;
+#[allow(dead_code)]
+const MIN_SCORE_THRESHOLD: f64 = 3.0;
+#[allow(dead_code)]
+const AMBIGUITY_RATIO: f64 = 0.9;
+
+#[allow(dead_code)]
+fn score_commit(profile: &RepoProfile, message: &str) -> f64 {
+    let subject = message.lines().next().unwrap_or(message);
+    let has_colon = subject.contains(':');
+
+    let scope_score = if has_colon {
+        let scope = sw1nn_lolcommits_rs::git::parse_commit_scope(subject);
+        if !scope.is_empty() && profile.scopes.contains_key(&scope) {
+            1.0
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+
+    let stripped = sw1nn_lolcommits_rs::git::strip_commit_prefix(subject);
+    let commit_tokens = tokenize(&stripped);
+    let token_score = if commit_tokens.is_empty() {
+        0.0
+    } else {
+        let matching = commit_tokens
+            .iter()
+            .filter(|t| profile.tokens.contains_key(t.as_str()))
+            .count();
+        matching as f64 / commit_tokens.len() as f64
+    };
+
+    let type_score = if has_colon {
+        let commit_type = sw1nn_lolcommits_rs::git::parse_commit_type(subject);
+        if commit_type != "commit" && profile.types.contains_key(&commit_type) {
+            1.0
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+
+    (scope_score * SCOPE_WEIGHT) + (token_score * TOKEN_WEIGHT) + (type_score * TYPE_WEIGHT)
+}
+
+/// Returns Some((repo_name, score)) if a confident match is found.
+#[allow(dead_code)]
+fn find_profile_match<'a>(repos: &'a [RepoInfo], message: &str) -> Option<(&'a str, f64)> {
+    if repos.is_empty() {
+        return None;
+    }
+
+    let mut scores: Vec<(&str, f64)> = repos
+        .iter()
+        .map(|r| (r.remote_name.as_str(), score_commit(&r.profile, message)))
+        .collect();
+
+    scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    let (best_name, best_score) = scores[0];
+
+    if best_score < MIN_SCORE_THRESHOLD {
+        return None;
+    }
+
+    // Check ambiguity: if second-best is within 10% of best
+    if scores.len() > 1 {
+        let second_score = scores[1].1;
+        if second_score >= best_score * AMBIGUITY_RATIO {
+            return None;
+        }
+    }
+
+    Some((best_name, best_score))
+}
+
 const SKIP_DIRS: &[&str] = &["target", "node_modules", ".git"];
 
 fn discover_repos(workspace: &Path) -> Vec<RepoInfo> {
@@ -793,6 +877,50 @@ mod tests {
 
         let result = find_exact_match(&repos, "Initial commit");
         assert_eq!(result, None); // Ambiguous -> None
+        Ok(())
+    }
+
+    #[test]
+    fn test_score_commit_scope_match() -> Result<()> {
+        let (_da, _db, repos) = make_test_repos()?;
+        let score_a = score_commit(&repos[0].profile, "feat(server): new feature");
+        let score_b = score_commit(&repos[1].profile, "feat(server): new feature");
+        // repo-a has "server" scope, repo-b doesn't
+        assert!(score_a > score_b);
+        Ok(())
+    }
+
+    #[test]
+    fn test_profile_match_by_scope() -> Result<()> {
+        let (_da, _db, repos) = make_test_repos()?;
+        let result = find_profile_match(&repos, "feat(server): add new handler");
+        assert_eq!(result.map(|(name, _)| name), Some("repo-a"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_profile_match_by_tokens() -> Result<()> {
+        let (_da, _db, repos) = make_test_repos()?;
+        // "webcam", "camera", "detection" are tokens unique to repo-b
+        let result = find_profile_match(&repos, "docs: webcam camera detection");
+        assert_eq!(result.map(|(name, _)| name), Some("repo-b"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_profile_match_below_threshold() -> Result<()> {
+        let (_da, _db, repos) = make_test_repos()?;
+        let result = find_profile_match(&repos, "completely unrelated gibberish xyz");
+        assert_eq!(result, None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_profile_match_ambiguous() -> Result<()> {
+        let (_da, _db, repos) = make_test_repos()?;
+        // "feat" exists in both, no scope, no distinctive tokens
+        let result = find_profile_match(&repos, "feat: something generic");
+        assert_eq!(result, None);
         Ok(())
     }
 }
