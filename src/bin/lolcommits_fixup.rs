@@ -567,6 +567,11 @@ fn run_fixup(
                 let (old_repo, _, _, _) = rename_fields.as_ref().unwrap();
                 *unresolved_repos.entry((*old_repo).clone()).or_default() += 1;
                 println!("{} {filename}", "[unresolved]".red());
+                if let Some(ref meta) = metadata
+                    && !meta.message.is_empty()
+                {
+                    println!("  message: {}", meta.message);
+                }
             }
             FixAction::Fix { .. } => {
                 println!("{} {filename}", "[fix]".green());
