@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.15.0 - 2026-04-28
+#### Features
+- (**fixup**) set file mtime to commit timestamp from PNG metadata - (21fd7d2) - Neale Swinnerton
+- (**fixup**) log commit message for unresolved images - (a117b64) - Neale Swinnerton
+#### Refactoring
+- extract TIMESTAMP_FORMAT constant and fix unsafe cast - (f0bbdfe) - Neale Swinnerton
+#### Miscellaneous Chores
+- (**packaging**) use https for git source in PKGBUILD - (f336cd6) - Neale Swinnerton
+- (**packaging**) remove sudo from makepkg hook - (64b9274) - Neale Swinnerton
+- add Justfile with release recipe - (cfb4a9a) - Neale Swinnerton
+
+- - -
+
 ## v1.14.0 - 2026-03-12
 #### Features
 - (**fixup**) add --no-guess and --glob CLI flags - (423cf58) - Neale Swinnerton
