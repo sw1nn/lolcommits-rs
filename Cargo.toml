@@ -4,7 +4,7 @@ version = "1.16.0"
 edition = "2024"
 
 [dependencies]
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
 nokhwa = { version = "0.10", features = ["input-native"] }
 image = "0.25"
 imageproc = "0.26"
@@ -29,11 +29,11 @@ serde = { version = "1.0", features = ["derive"] }
 xdg = "3.0"
 fontconfig = "0.10"
 axum = { version = "0.8", features = ["multipart"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.52", features = ["full"] }
 tower-http = { version = "0.6", features = ["fs", "trace"] }
 serde_json = "1.0"
 png = "0.18"
-tempfile = "3.23.0"
+tempfile = "3.27"
 async-stream = "0.3"
 futures = "0.3"
 owo-colors = { version = "4.1", features = ["supports-colors"] }
@@ -43,4 +43,4 @@ glob-match = "0.2"
 
 [dev-dependencies]
 temp-env = "0.3"
-test-case = "3.3.1"
+test-case = "3.3"
