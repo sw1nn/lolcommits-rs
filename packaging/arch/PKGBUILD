@@ -31,6 +31,11 @@ package_lolcommits() {
 
   cd ${pkgbase}
   install -Dt "$pkgdir"/usr/bin ${CARGO_TARGET_DIR:-target}/release/lolcommits_upload
+
+  local exe=${CARGO_TARGET_DIR:-target}/release/lolcommits_upload
+  "$exe" --completions bash | install -Dm0644 /dev/stdin "$pkgdir/usr/share/bash-completion/completions/lolcommits_upload"
+  "$exe" --completions zsh | install -Dm0644 /dev/stdin "$pkgdir/usr/share/zsh/site-functions/_lolcommits_upload"
+  "$exe" --completions fish | install -Dm0644 /dev/stdin "$pkgdir/usr/share/fish/vendor_completions.d/lolcommits_upload.fish"
 }
 
 package_lolcommits-server() {

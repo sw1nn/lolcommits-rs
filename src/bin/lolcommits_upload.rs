@@ -26,6 +26,10 @@ struct Args {
 
     #[arg(long, value_name = "FILE", help = "Path to config file")]
     config: Option<PathBuf>,
+
+    /// Generate shell completions for the given shell
+    #[arg(long, value_name = "SHELL")]
+    completions: Option<clap_complete::Shell>,
 }
 
 fn main() -> Result<()> {
@@ -37,6 +41,17 @@ fn main() -> Result<()> {
         .init();
 
     let args = Args::parse();
+
+    if let Some(shell) = args.completions {
+        use clap::CommandFactory;
+        clap_complete::generate(
+            shell,
+            &mut Args::command(),
+            "lolcommits_upload",
+            &mut std::io::stdout(),
+        );
+        return Ok(());
+    }
 
     // Load configuration
     let config = config::Config::load_from(args.config)?;

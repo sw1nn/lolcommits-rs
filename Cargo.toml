@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.6", features = ["derive"] }
+clap_complete = "4.6"
 nokhwa = { version = "0.10", features = ["input-native"] }
 image = "0.25"
 imageproc = "0.26"
