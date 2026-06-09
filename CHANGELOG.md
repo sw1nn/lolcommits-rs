@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.17.0 - 2026-06-08
+#### Features
+- (**cli**) add shell completions for lolcommits_upload - (8025a45) - Neale Swinnerton
+#### Miscellaneous Chores
+- (**deps**) bump versions to latest major.minor - (27ca369) - Neale Swinnerton
+
+- - -
+
 ## v1.16.0 - 2026-04-28
 #### Miscellaneous Chores
 - (**deps**) bump deps (opencv 0.98.2 required) - (2a061f2) - Neale Swinnerton
