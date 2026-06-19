@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.17.1 - 2026-06-19
+#### Bug Fixes
+- (**cli**) add FilePath value hint for config arg - (9c81f02) - Neale Swinnerton
+
+- - -
+
 ## v1.17.0 - 2026-06-08
 #### Features
 - (**cli**) add shell completions for lolcommits_upload - (8025a45) - Neale Swinnerton
