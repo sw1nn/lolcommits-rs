@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueHint};
 use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
@@ -24,7 +24,7 @@ struct Args {
     #[arg(long, short, action = clap::ArgAction::SetTrue, help = "Suppress camera busy errors (exit 0 instead)")]
     quiet: bool,
 
-    #[arg(long, value_name = "FILE", help = "Path to config file")]
+    #[arg(long, value_name = "FILE", help = "Path to config file", value_hint = ValueHint::FilePath)]
     config: Option<PathBuf>,
 
     /// Generate shell completions for the given shell
