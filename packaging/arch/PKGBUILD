@@ -8,8 +8,8 @@ pkgdesc='Webcam snapshot tool for git commits'
 arch=('x86_64')
 url="https://git.sw1nn.net/sw1nn/lolcommits-rs"
 license=('MIT')
-depends=('opencv' 'fontconfig')
-makedepends=('rust' 'clang' 'llvm' 'pkg-config')
+depends=('opencv' 'fontconfig' 'zlib' 'gcc-libs' 'glibc')
+makedepends=('git' 'rust' 'clang' 'llvm' 'pkg-config')
 options=('!lto')
 source=("${pkgbase}::git+https://git.sw1nn.net/sw1nn/lolcommits-rs.git#tag=v${pkgver}")
 sha256sums=('SKIP')
@@ -27,7 +27,7 @@ build() {
 
 package_lolcommits() {
   pkgdesc='Webcam snapshot client for git commits'
-  depends=('opencv' 'gcc-libs')
+  depends=('opencv' 'zlib' 'gcc-libs' 'glibc')
 
   cd ${pkgbase}
   install -Dt "$pkgdir"/usr/bin ${CARGO_TARGET_DIR:-target}/release/lolcommits_upload
@@ -40,7 +40,7 @@ package_lolcommits() {
 
 package_lolcommits-server() {
   pkgdesc='Server daemon for processing lolcommits images'
-  depends=('opencv' 'fontconfig' 'gcc-libs')
+  depends=('opencv' 'fontconfig' 'gcc-libs' 'glibc')
   install=lolcommits-server.install
 
   cd ${pkgbase}

@@ -1,55 +1,52 @@
 use std::process::Command;
 
+/// Ask pkg-config for the installed OpenCV version.
+///
+/// OpenCV 5 installs `opencv5.pc` and drops `opencv4.pc` entirely, so both
+/// names have to be probed. Newest first, so a box with both files reports the
+/// version the `opencv` crate itself will link against.
+fn detect_opencv_version() -> Option<String> {
+    ["opencv5", "opencv4"].into_iter().find_map(|pc| {
+        let output = Command::new("pkg-config")
+            .args(["--modversion", pc])
+            .output()
+            .ok()?;
+        output
+            .status
+            .success()
+            .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    })
+}
+
 fn main() {
     // Declare custom cfg values for check-cfg
     println!("cargo::rustc-check-cfg=cfg(cvt_color4)");
     println!("cargo::rustc-check-cfg=cfg(cvt_color5)");
 
-    // Get OpenCV version from pkg-config
-    let output = Command::new("pkg-config")
-        .args(["--modversion", "opencv4"])
-        .output();
-
-    let version = match output {
-        Ok(output) if output.status.success() => {
-            String::from_utf8_lossy(&output.stdout).trim().to_string()
-        }
-        _ => {
-            // If pkg-config fails, default to 4.12
-            eprintln!(
-                "cargo:warning=Could not detect OpenCV version via pkg-config, defaulting to 4.12"
-            );
-            "4.12.0".to_string()
-        }
-    };
-
-    println!("cargo:warning=Detected OpenCV version: {}", version);
-
-    // Parse major.minor version
-    let parts: Vec<&str> = version.split('.').collect();
-    if parts.len() >= 2 {
-        let major: u32 = parts[0].parse().unwrap_or(4);
-        let minor: u32 = parts[1].parse().unwrap_or(12);
-
-        // Set cfg based on version
-        // OpenCV 4.10 and earlier use 4-parameter cvt_color
-        // OpenCV 4.12+ uses 5-parameter cvt_color
-        if major == 4 && minor <= 10 {
-            println!("cargo:rustc-cfg=cvt_color4");
-            println!("cargo:warning=Using 4-parameter cvt_color (OpenCV 4.10 API)");
-        } else {
-            println!("cargo:rustc-cfg=cvt_color5");
-            println!("cargo:warning=Using 5-parameter cvt_color (OpenCV 4.12+ API)");
-        }
-    } else {
-        // Default to 5-parameter version if parsing fails
-        println!("cargo:rustc-cfg=cvt_color5");
+    let version = detect_opencv_version().unwrap_or_else(|| {
         println!(
-            "cargo:warning=Could not parse OpenCV version, defaulting to 5-parameter cvt_color"
+            "cargo:warning=Could not detect OpenCV version via pkg-config, defaulting to 4.12"
         );
+        "4.12.0".to_owned()
+    });
+
+    println!("cargo:warning=Detected OpenCV version: {version}");
+
+    // OpenCV 4.10 and earlier take 4 arguments to cvt_color; 4.11+ and 5.x take
+    // a fifth AlgorithmHint argument.
+    let mut parts = version.split('.');
+    let major: u32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(4);
+    let minor: u32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(12);
+
+    if major == 4 && minor <= 10 {
+        println!("cargo:rustc-cfg=cvt_color4");
+        println!("cargo:warning=Using 4-parameter cvt_color (OpenCV 4.10 API)");
+    } else {
+        println!("cargo:rustc-cfg=cvt_color5");
+        println!("cargo:warning=Using 5-parameter cvt_color (OpenCV 4.11+ API)");
     }
 
-    // Re-run build script if opencv4.pc changes
+    // Re-run build script if the pkg-config search path changes
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=PKG_CONFIG_PATH");
 
