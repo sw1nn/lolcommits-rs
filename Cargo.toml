@@ -8,30 +8,29 @@ clap = { version = "4.6", features = ["derive"] }
 clap_complete = "4.6"
 nokhwa = { version = "0.10", features = ["input-native"] }
 image = "0.25"
-imageproc = "0.26"
+imageproc = "0.27"
 ab_glyph = "0.2"
-git2 = "0.20"
+git2 = "0.21"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-journald = "0.3"
 derive_more = { version = "2.1", features = ["display", "from", "error"] }
 directories = "6.0"
 chrono = "0.4"
-opencv = { version = "0.98", default-features = false, features = [
+opencv = { version = "0.100", default-features = false, features = [
   "imgproc",
   "clang-runtime",
   "dnn",
 ] }
 reqwest = { version = "0.13", features = ["blocking", "multipart"] }
 md5 = "0.8"
-sha2 = "0.10"
-toml = "1.0"
+toml = "1.1"
 serde = { version = "1.0", features = ["derive"] }
 xdg = "3.0"
-fontconfig = "0.10"
+fontconfig = "0.11"
 axum = { version = "0.8", features = ["multipart"] }
-tokio = { version = "1.52", features = ["full"] }
-tower-http = { version = "0.6", features = ["fs", "trace"] }
+tokio = { version = "1.53", features = ["full"] }
+tower-http = { version = "0.7", features = ["fs", "trace"] }
 serde_json = "1.0"
 png = "0.18"
 tempfile = "3.27"

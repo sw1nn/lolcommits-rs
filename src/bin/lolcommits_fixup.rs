@@ -122,8 +122,8 @@ fn build_repo_profile(repo: &Repository) -> RepoProfile {
         };
 
         let message = match commit.message() {
-            Some(m) => m.trim().to_owned(),
-            None => continue,
+            Ok(m) => m.trim().to_owned(),
+            Err(_) => continue,
         };
 
         let subject = message.lines().next().unwrap_or(&message).to_owned();
@@ -322,7 +322,7 @@ fn walk_for_repos(dir: &Path, repos: &mut Vec<RepoInfo>) {
                     let remote_name = sw1nn_lolcommits_rs::git::repo_name_from_url(
                         repo.find_remote("origin")
                             .ok()
-                            .and_then(|r| r.url().map(|s| s.to_owned()))
+                            .and_then(|r| r.url().map(|s| s.to_owned()).ok())
                             .as_deref()
                             .unwrap_or(""),
                     )

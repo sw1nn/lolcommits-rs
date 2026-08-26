@@ -12,7 +12,7 @@ use std::env;
 use std::path::PathBuf;
 
 /// Wrapper around OpenCV's cvt_color to handle API differences between versions
-/// OpenCV 4.10 and earlier use 4 parameters, OpenCV 4.12+ requires 5 parameters
+/// OpenCV 4.10 and earlier use 4 parameters, OpenCV 4.11+ and 5.x require 5 parameters
 #[cfg(cvt_color4)]
 fn convert_color<S, D>(src: &S, dst: &mut D, code: i32, dcn: i32) -> opencv::Result<()>
 where
@@ -82,29 +82,25 @@ fn resolve_font_path(font_name: &str) -> Result<PathBuf> {
         .ok_or_else(|| std::io::Error::other("Failed to initialize fontconfig"))?;
 
     // Try to find the requested font
-    let font = fc.find(font_name, None);
-
-    if let Some(font) = font {
-        let path = &font.path;
-        tracing::debug!(font_name = %font_name, path = %path.display(), "Found font via fontconfig");
-        return Ok(path.clone());
+    match fc.find(font_name, None) {
+        Ok(font) => {
+            tracing::debug!(font_name = %font_name, path = %font.path.display(), "Found font via fontconfig");
+            return Ok(font.path);
+        }
+        Err(error) => {
+            // Fallback to monospace (universally available)
+            tracing::warn!(font_name = %font_name, %error, "Font not found, trying fallback: monospace");
+        }
     }
 
-    // Fallback to monospace (universally available)
-    tracing::warn!(font_name = %font_name, "Font not found, trying fallback: monospace");
-    let fallback = fc.find("monospace", None);
+    let fallback = fc.find("monospace", None).map_err(|error| {
+        std::io::Error::other(format!(
+            "Font '{font_name}' not found and monospace fallback unavailable: {error}"
+        ))
+    })?;
 
-    if let Some(font) = fallback {
-        let path = &font.path;
-        tracing::info!(path = %path.display(), "Using fallback font");
-        return Ok(path.clone());
-    }
-
-    Err(std::io::Error::other(format!(
-        "Font '{}' not found and monospace fallback unavailable",
-        font_name
-    ))
-    .into())
+    tracing::info!(path = %fallback.path.display(), "Using fallback font");
+    Ok(fallback.path)
 }
 
 /// Resolve background image path according to XDG Base Directory specification

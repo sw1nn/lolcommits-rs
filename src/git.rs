@@ -100,7 +100,7 @@ pub fn get_repo_name(repo: &Repository) -> Result<String> {
 /// - File URL:     `file:///path/to/repo.git`
 fn repo_name_from_remote(repo: &Repository) -> Option<String> {
     let remote = repo.find_remote("origin").ok()?;
-    let url = remote.url()?;
+    let url = remote.url().ok()?;
     repo_name_from_url(url)
 }
 
@@ -178,11 +178,11 @@ fn get_diff_stats_in_dir(sha: &str, repo_path: Option<&std::path::Path>) -> Resu
 pub fn get_branch_name(repo: &Repository) -> Result<String> {
     let head = repo.head()?;
 
-    if let Some(branch_name) = head.shorthand() {
-        Ok(branch_name.to_string())
-    } else {
-        Ok("HEAD".to_string())
-    }
+    // A detached or non-UTF-8 head has no usable shorthand.
+    Ok(head
+        .shorthand()
+        .map(str::to_owned)
+        .unwrap_or_else(|_| "HEAD".to_owned()))
 }
 
 /// Get the commit message for a given SHA (supports both short and long SHAs)
@@ -190,10 +190,7 @@ pub fn get_commit_message(repo: &Repository, sha: &str) -> Result<String> {
     let obj = repo.revparse_single(sha)?;
     let commit = repo.find_commit(obj.id())?;
 
-    commit
-        .message()
-        .map(|s| s.to_string())
-        .ok_or(GitCommandFailed)
+    Ok(commit.message()?.to_owned())
 }
 
 /// Parse the commit type from a conventional commit message
