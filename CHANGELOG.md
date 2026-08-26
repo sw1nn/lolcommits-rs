@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v2.0.0 - 2026-08-26
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**cli**) replace lolcommits_upload with lolcommits-ctl - (2519022) - Neale Swinnerton
+
+- - -
+
 ## v1.18.1 - 2026-08-26
 #### Bug Fixes
 - (**opencv**) pass engine argument to read_net_from_onnx on OpenCV 5 - (b434154) - Neale Swinnerton
