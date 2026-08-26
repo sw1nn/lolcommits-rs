@@ -104,7 +104,7 @@ fn repo_name_from_remote(repo: &Repository) -> Option<String> {
     repo_name_from_url(url)
 }
 
-pub fn repo_name_from_url(url: &str) -> Option<String> {
+fn repo_name_from_url(url: &str) -> Option<String> {
     let url = url.trim_end_matches('/');
 
     // Split on '/' or ':' (for scp-style SSH URLs) and take the last segment
