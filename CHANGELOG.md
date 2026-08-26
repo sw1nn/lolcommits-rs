@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.18.1 - 2026-08-26
+#### Bug Fixes
+- (**opencv**) pass engine argument to read_net_from_onnx on OpenCV 5 - (b434154) - Neale Swinnerton
+
+- - -
+
 ## v1.18.0 - 2026-08-26
 #### Build system
 - (**arch**) correct package dependencies and detect OpenCV 5 - (b8a64b2) - Neale Swinnerton
