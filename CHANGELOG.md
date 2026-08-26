@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.18.0 - 2026-08-26
+#### Build system
+- (**arch**) correct package dependencies and detect OpenCV 5 - (b8a64b2) - Neale Swinnerton
+- (**nix**) update inputs and fix pinned OpenCV 4.10 build - (9ea46d6) - Neale Swinnerton
+#### Refactoring
+- remove lolcommits_fixup - (c257851) - Neale Swinnerton
+#### Miscellaneous Chores
+- (**deps**) update dependencies to latest versions - (6920211) - Neale Swinnerton
+- (**packaging**) update justfile. - (6e16139) - Neale Swinnerton
+- (**packaging**) update source url. - (ddecf6c) - Neale Swinnerton
+
+- - -
+
 ## v1.17.1 - 2026-06-19
 #### Bug Fixes
 - (**cli**) add FilePath value hint for config arg - (9c81f02) - Neale Swinnerton
