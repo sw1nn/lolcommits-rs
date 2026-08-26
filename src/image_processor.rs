@@ -37,6 +37,25 @@ where
     )
 }
 
+/// Wrapper around OpenCV's read_net_from_onnx to handle API differences between versions
+/// OpenCV 5 adds an engine selector; ENGINE_AUTO is its default and matches the 4.x behaviour.
+///
+/// This gates on the `opencv` crate's own branch macro rather than the cvt_color cfgs
+/// from build.rs, because the split here is 4.x against 5.x, which the macro expresses
+/// directly. The unused branch is discarded during macro expansion.
+fn read_onnx_net<P>(model_path: P) -> opencv::Result<opencv::dnn::Net>
+where
+    P: AsRef<std::ffi::OsStr>,
+{
+    opencv::opencv_branch_5! {
+        {
+            read_net_from_onnx(model_path, opencv::dnn::ENGINE_AUTO)
+        } else {
+            read_net_from_onnx(model_path)
+        }
+    }
+}
+
 /// Format a number with k/M suffix for numbers over 999
 /// Examples: 42 -> "42", 1234 -> "1.2k", 1567890 -> "1.6M"
 fn format_stat_number(n: u32) -> String {
@@ -205,7 +224,7 @@ pub fn replace_background(
     let model_path = segmentation::get_model_path(&config.models_dir)?;
     tracing::debug!(path = %model_path.display(), "Loading segmentation model");
 
-    let mut net = read_net_from_onnx(model_path.to_str().unwrap())?;
+    let mut net = read_onnx_net(&model_path)?;
     net.set_preferable_backend(DNN_BACKEND_OPENCV)?;
     net.set_preferable_target(DNN_TARGET_CPU)?;
 
