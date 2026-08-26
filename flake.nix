@@ -18,6 +18,16 @@
         opencv410 = (pkgs.opencv.override {
           # Use protobuf 27 for compatibility with OpenCV 4.10.0
           protobuf = pkgs.protobuf_27;
+          # OpenCV 4.10 predates ffmpeg 8, which dropped avcodec_close and
+          # av_stream_get_side_data, so videoio fails to compile against it.
+          # Camera capture goes through nokhwa, not OpenCV, so drop the backend.
+          enableFfmpeg = false;
+          # nixpkgs binds the contrib sources to a `let` variable, not a
+          # derivation attribute, so overrideAttrs cannot re-pin them and they
+          # stay on the nixpkgs version while `src` below drops to 4.10.0. The
+          # crate only uses core, imgproc and dnn, none of which are contrib
+          # modules, so build without contrib instead of fighting the mismatch.
+          enableContrib = false;
         }).overrideAttrs (oldAttrs: rec {
           version = "4.10.0";
           src = pkgs.fetchFromGitHub {
@@ -25,12 +35,6 @@
             repo = "opencv";
             rev = version;
             sha256 = "sha256-s+KvBrV/BxrxEvPhHzWCVFQdUQwhUdRJyb0wcGDFpeo=";
-          };
-          contrib = pkgs.fetchFromGitHub {
-            owner = "opencv";
-            repo = "opencv_contrib";
-            rev = version;
-            sha256 = "sha256-JFSQQRvcZ+aiLUxXqfODaWQW635Xkkvh4xmkNcGySh8=";
           };
 
           # Patch OpenCV source to fix CMake 4.x compatibility
