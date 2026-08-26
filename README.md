@@ -37,8 +37,35 @@ To automatically capture snapshots on every commit, add this project as a git po
 ```bash
 # In your repository
 echo '#!/bin/sh' > .git/hooks/post-commit
-echo 'lolcommits "$1" "$2"' >> .git/hooks/post-commit
+echo 'lolcommits-ctl upload --quiet' >> .git/hooks/post-commit
 chmod +x .git/hooks/post-commit
+```
+
+## Usage
+
+The client is `lolcommits-ctl`:
+
+```bash
+# Capture and upload a snapshot for HEAD
+lolcommits-ctl upload
+
+# Any git revision works
+lolcommits-ctl upload HEAD~1
+
+# Re-upload a revision that was already captured
+lolcommits-ctl upload --force
+
+# Exit 0 instead of failing when the camera is in use (useful in a git hook)
+lolcommits-ctl upload --quiet
+```
+
+### Shell Completions
+
+Packaged installs ship completions for bash, zsh and fish. To generate them
+yourself:
+
+```bash
+lolcommits-ctl completions zsh > ~/.zsh/completions/_lolcommits-ctl
 ```
 
 ## Configuration

@@ -1,4 +1,4 @@
-use clap::{Parser, ValueHint};
+use clap::{CommandFactory, Parser, Subcommand, ValueHint};
 use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
@@ -8,10 +8,28 @@ use sw1nn_lolcommits_rs::{
 };
 
 #[derive(Parser, Debug)]
-#[command(name = "lolcommits_upload")]
-#[command(about = "Take a snapshot with your webcam when you commit")]
+#[command(name = "lolcommits-ctl")]
+#[command(about = "Control the lolcommits webcam snapshot client")]
 #[command(version)]
-struct Args {
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Take a snapshot with your webcam and upload it
+    Upload(UploadArgs),
+
+    /// Generate shell completions for the given shell
+    Completions {
+        #[arg(value_name = "SHELL")]
+        shell: clap_complete::Shell,
+    },
+}
+
+#[derive(clap::Args, Debug)]
+struct UploadArgs {
     #[arg(
         default_value = "HEAD",
         help = "The commit revision (any git revision parameter)"
@@ -26,10 +44,6 @@ struct Args {
 
     #[arg(long, value_name = "FILE", help = "Path to config file", value_hint = ValueHint::FilePath)]
     config: Option<PathBuf>,
-
-    /// Generate shell completions for the given shell
-    #[arg(long, value_name = "SHELL")]
-    completions: Option<clap_complete::Shell>,
 }
 
 fn main() -> Result<()> {
@@ -40,20 +54,21 @@ fn main() -> Result<()> {
         )
         .init();
 
-    let args = Args::parse();
-
-    if let Some(shell) = args.completions {
-        use clap::CommandFactory;
-        clap_complete::generate(
-            shell,
-            &mut Args::command(),
-            "lolcommits_upload",
-            &mut std::io::stdout(),
-        );
-        return Ok(());
+    match Cli::parse().command {
+        Commands::Completions { shell } => {
+            clap_complete::generate(
+                shell,
+                &mut Cli::command(),
+                "lolcommits-ctl",
+                &mut std::io::stdout(),
+            );
+            Ok(())
+        }
+        Commands::Upload(args) => upload(args),
     }
+}
 
-    // Load configuration
+fn upload(args: UploadArgs) -> Result<()> {
     let config = config::Config::load_from(args.config)?;
     tracing::debug!(?config, "Loaded configuration");
 
@@ -61,7 +76,7 @@ fn main() -> Result<()> {
         .client
         .as_ref()
         .map(|c| c.server_url.clone())
-        .unwrap_or_else(|| "server".to_string());
+        .unwrap_or_else(|| "server".to_owned());
 
     let capture_args = capture::CaptureArgs {
         revision: args.revision,
@@ -113,5 +128,66 @@ fn main() -> Result<()> {
             eprintln!("{} {}", "✗".red(), e.to_string().red());
             Err(e)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn cli_definition_is_valid() {
+        Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn upload_defaults_revision_to_head() -> TestResult {
+        let cli = Cli::try_parse_from(["lolcommits-ctl", "upload"])?;
+        let Commands::Upload(args) = cli.command else {
+            panic!("expected upload command");
+        };
+        assert_eq!(args.revision, "HEAD");
+        assert!(!args.force);
+        assert!(!args.quiet);
+        assert!(args.config.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn upload_accepts_revision_and_flags() -> TestResult {
+        let cli = Cli::try_parse_from([
+            "lolcommits-ctl",
+            "upload",
+            "HEAD~1",
+            "--force",
+            "--quiet",
+            "--config",
+            "/tmp/config.toml",
+        ])?;
+        let Commands::Upload(args) = cli.command else {
+            panic!("expected upload command");
+        };
+        assert_eq!(args.revision, "HEAD~1");
+        assert!(args.force);
+        assert!(args.quiet);
+        assert_eq!(args.config, Some(PathBuf::from("/tmp/config.toml")));
+        Ok(())
+    }
+
+    #[test]
+    fn completions_parses_shell() -> TestResult {
+        let cli = Cli::try_parse_from(["lolcommits-ctl", "completions", "zsh"])?;
+        let Commands::Completions { shell } = cli.command else {
+            panic!("expected completions command");
+        };
+        assert_eq!(shell, clap_complete::Shell::Zsh);
+        Ok(())
+    }
+
+    #[test]
+    fn bare_invocation_is_rejected() {
+        assert!(Cli::try_parse_from(["lolcommits-ctl"]).is_err());
     }
 }
