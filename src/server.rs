@@ -419,9 +419,7 @@ async fn process_image_async(
     image_metadata::save_png_with_metadata(&final_image, temp_path, &commit_metadata)?;
 
     // Atomically move temp file to final destination
-    temp_file
-        .persist(&output_path)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    persist_image(temp_file, &output_path)?;
     tracing::info!(path = %output_path.display(), "Saved lolcommit with metadata");
     crate::metrics::record_upload("processed");
 
@@ -441,6 +439,21 @@ async fn process_image_async(
     Ok(())
 }
 
+fn persist_image(temp_file: tempfile::NamedTempFile, output_path: &std::path::Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    // NamedTempFile creates files with mode 0600 and persist() is a rename
+    // that keeps it, so backups and other group/world readers cannot access
+    // the stored image unless the mode is widened before the rename.
+    temp_file
+        .as_file()
+        .set_permissions(std::fs::Permissions::from_mode(0o644))?;
+    temp_file
+        .persist(output_path)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    Ok(())
+}
+
 fn get_output_path(
     config: &config::ServerConfig,
     repo_name: &str,
@@ -457,4 +470,26 @@ fn get_output_path(
     let output_path = images_dir.join(filename);
 
     Ok(output_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn persisted_image_is_world_readable() -> Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir()?;
+        let output_path = dir.path().join("image.png");
+
+        let temp_file = tempfile::NamedTempFile::new_in(dir.path())?;
+        std::fs::write(temp_file.path(), b"png-bytes")?;
+
+        persist_image(temp_file, &output_path)?;
+
+        let mode = std::fs::metadata(&output_path)?.permissions().mode() & 0o777;
+        assert_eq!(mode, 0o644, "stored image mode {mode:o} is not 644");
+        Ok(())
+    }
 }
