@@ -183,6 +183,12 @@ pub struct ServerConfig {
     /// which is only allowed when bound to a loopback address.
     #[serde(default)]
     pub upload_tokens: Vec<Secret>,
+
+    /// Maximum number of uploads processed concurrently. Further uploads are
+    /// shed with 429 while all slots are in use. Bounds the CPU/memory cost of
+    /// image decode plus ONNX segmentation. Must be at least 1.
+    #[serde(default = "default_max_concurrent_uploads")]
+    pub max_concurrent_uploads: usize,
 }
 
 fn default_font_name() -> String {
@@ -259,6 +265,10 @@ fn default_bind_port() -> u16 {
     3000
 }
 
+fn default_max_concurrent_uploads() -> usize {
+    4
+}
+
 impl Default for BurnedInChyronConfig {
     fn default() -> Self {
         Self {
@@ -299,6 +309,7 @@ impl Default for ServerConfig {
             log_output: crate::LogOutput::default(),
             burned_in_chyron: default_burned_in_chyron(),
             upload_tokens: Vec::new(),
+            max_concurrent_uploads: default_max_concurrent_uploads(),
         }
     }
 }
@@ -563,6 +574,7 @@ mod tests {
         assert_eq!(server.bind_address, "127.0.0.1");
         assert_eq!(server.bind_port, 3000);
         assert!(server.upload_tokens.is_empty());
+        assert_eq!(server.max_concurrent_uploads, 4);
     }
 
     #[test]

@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore, broadcast};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -106,12 +106,14 @@ struct AppState {
     tx: broadcast::Sender<String>,
     revision_cache: Arc<RwLock<HashSet<String>>>,
     upload_tokens: Arc<Vec<Secret>>,
+    upload_semaphore: Arc<Semaphore>,
 }
 
 pub fn create_router(
     data_home: std::path::PathBuf,
     metrics_handle: metrics_exporter_prometheus::PrometheusHandle,
     upload_tokens: Vec<Secret>,
+    max_concurrent_uploads: usize,
 ) -> Router {
     // Create broadcast channel for SSE events (capacity of 100 events)
     let (tx, _rx) = broadcast::channel(100);
@@ -132,10 +134,18 @@ pub fn create_router(
     crate::metrics::set_images_total(initial_cache_size);
     crate::metrics::set_revision_cache_size(initial_cache_size);
 
+    // A value of 0 would refuse every upload, so clamp to at least one slot.
+    let permits = max_concurrent_uploads.max(1);
+    if permits != max_concurrent_uploads {
+        tracing::warn!("max_concurrent_uploads was 0; clamping to 1");
+    }
+    tracing::info!(max_concurrent_uploads = permits, "Upload concurrency limit");
+
     let state = AppState {
         tx,
         revision_cache,
         upload_tokens: Arc::new(upload_tokens),
+        upload_semaphore: Arc::new(Semaphore::new(permits)),
     };
 
     let app_routes = Router::new()
@@ -280,6 +290,21 @@ fn get_image_list(config: &config::ServerConfig) -> Result<Vec<git::CommitMetada
     Ok(images)
 }
 
+/// Reserve a slot for background image processing. The returned permit must be
+/// held for the lifetime of the processing task; the slot is freed when the
+/// permit is dropped. When every slot is in use, returns `Err` with the status
+/// to shed the request under (429) so callers apply backpressure instead of
+/// enqueuing unbounded work.
+fn reserve_upload_slot(
+    semaphore: &Arc<Semaphore>,
+) -> std::result::Result<OwnedSemaphorePermit, StatusCode> {
+    Arc::clone(semaphore).try_acquire_owned().map_err(|_| {
+        tracing::warn!("Upload rejected: max concurrent uploads reached");
+        crate::metrics::record_upload("overloaded");
+        StatusCode::TOO_MANY_REQUESTS
+    })
+}
+
 async fn upload_handler(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -346,6 +371,16 @@ async fn upload_handler(
         return (StatusCode::BAD_REQUEST, "Invalid metadata").into_response();
     }
 
+    // Reserve a processing slot before committing to any heavy work. On
+    // exhaustion we shed with 429 rather than queueing unbounded background
+    // tasks (each of which decodes an image and runs ONNX segmentation).
+    let permit = match reserve_upload_slot(&state.upload_semaphore) {
+        Ok(permit) => permit,
+        Err(status) => {
+            return (status, "Server busy: max concurrent uploads reached").into_response();
+        }
+    };
+
     tracing::info!(
         revision = %metadata.revision,
         repo = %metadata.repo_name,
@@ -353,10 +388,16 @@ async fn upload_handler(
     );
     crate::metrics::record_upload("accepted");
 
-    // Spawn async processing task
+    // Spawn async processing task. The permit is moved into the task and bound
+    // to `_permit` so it lives for the whole task, then drops when the future
+    // ends — on success, on error return, on panic (drop runs during unwind),
+    // or on task abort / runtime shutdown (the dropped future drops it). The
+    // slot is therefore released in every exit path. Note: `let _permit = ...`
+    // (not `let _ = ...`, which would drop it immediately).
     let tx = state.tx.clone();
     let revision_cache = state.revision_cache.clone();
     tokio::spawn(async move {
+        let _permit = permit;
         if let Err(e) = process_image_async(image_bytes, metadata, tx, revision_cache).await {
             tracing::error!(error = %e, "Failed to process image");
             crate::metrics::record_upload("failed");
@@ -751,6 +792,45 @@ mod tests {
             load_credential_tokens("upload_tokens")
         })?;
         assert!(tokens.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn reserve_upload_slot_sheds_with_429_when_exhausted() -> Result<()> {
+        let semaphore = Arc::new(Semaphore::new(1));
+
+        // Hold the only permit for the rest of the test.
+        let _held = match reserve_upload_slot(&semaphore) {
+            Ok(permit) => permit,
+            Err(_) => panic!("first reservation should succeed"),
+        };
+
+        // No slots left: the next reservation is shed with 429.
+        match reserve_upload_slot(&semaphore) {
+            Ok(_) => panic!("second reservation should be shed"),
+            Err(status) => assert_eq!(status, StatusCode::TOO_MANY_REQUESTS),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn reserve_upload_slot_frees_permit_on_drop() -> Result<()> {
+        let semaphore = Arc::new(Semaphore::new(1));
+
+        // Acquire and immediately drop, mirroring a processing task that ended
+        // (via success, error, panic, or abort — all end with the permit drop).
+        match reserve_upload_slot(&semaphore) {
+            Ok(permit) => drop(permit),
+            Err(_) => panic!("reservation should succeed"),
+        }
+
+        // The slot is available again.
+        assert!(
+            reserve_upload_slot(&semaphore).is_ok(),
+            "slot should be reusable after the permit is dropped"
+        );
+
         Ok(())
     }
 }

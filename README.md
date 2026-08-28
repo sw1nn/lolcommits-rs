@@ -227,6 +227,19 @@ LoadCredential=upload_tokens:/etc/lolcommits/upload_tokens
 ExecStart=/usr/bin/lolcommitsd
 ```
 
+### Upload concurrency limit
+
+Each accepted upload is processed in the background (image decode plus ONNX
+segmentation), which is CPU and memory intensive. `max_concurrent_uploads`
+caps how many run at once; while every slot is in use, further uploads are shed
+with `429 Too Many Requests` instead of queueing unbounded work. It defaults to
+`4` and must be at least 1.
+
+```toml
+[server]
+max_concurrent_uploads = 4
+```
+
 ### Gallery access control (reverse proxy SSO)
 
 The gallery and read endpoints are not authenticated by the application; place

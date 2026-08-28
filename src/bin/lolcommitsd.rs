@@ -44,7 +44,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Upload authentication configured"
     );
 
-    let app = server::create_router(images_dir, metrics_handle, upload_tokens);
+    let app = server::create_router(
+        images_dir,
+        metrics_handle,
+        upload_tokens,
+        server_cfg.max_concurrent_uploads,
+    );
 
     let bind_addr = format!("{}:{}", server_cfg.bind_address, server_cfg.bind_port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
