@@ -32,7 +32,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let images_dir = PathBuf::from(&server_cfg.images_dir);
 
-    let app = server::create_router(images_dir, metrics_handle);
+    // Effective tokens = config tokens plus any supplied via systemd credentials
+    // ($CREDENTIALS_DIRECTORY/upload_tokens, one token per line).
+    let mut upload_tokens = server_cfg.upload_tokens.clone();
+    upload_tokens.extend(server::load_credential_tokens("upload_tokens")?);
+
+    // Fail closed: never serve a non-loopback address without upload auth.
+    server::ensure_bind_is_authorized(&server_cfg.bind_address, &upload_tokens)?;
+    tracing::info!(
+        token_count = upload_tokens.len(),
+        "Upload authentication configured"
+    );
+
+    let app = server::create_router(images_dir, metrics_handle, upload_tokens);
 
     let bind_addr = format!("{}:{}", server_cfg.bind_address, server_cfg.bind_port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;

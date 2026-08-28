@@ -6,6 +6,7 @@ pub mod git;
 pub mod image_metadata;
 pub mod image_processor;
 pub mod metrics;
+pub mod secret;
 pub mod segmentation;
 pub mod server;
 

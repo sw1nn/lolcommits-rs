@@ -138,15 +138,15 @@ fn upload_to_server(
                 .mime_str("image/png")?,
         );
 
-    let response =
-        client
-            .post(&url)
-            .multipart(form)
-            .send()
-            .map_err(|e| Error::ServerConnectionFailed {
-                url: url.clone(),
-                source: e,
-            })?;
+    let mut request = client.post(&url).multipart(form);
+    if let Some(token) = &config.upload_token {
+        request = request.bearer_auth(token.expose());
+    }
+
+    let response = request.send().map_err(|e| Error::ServerConnectionFailed {
+        url: url.clone(),
+        source: e,
+    })?;
 
     let status = response.status();
     let body = response

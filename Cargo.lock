@@ -3454,6 +3454,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "subtle",
  "temp-env",
  "tempfile",
  "test-case",

@@ -24,7 +24,9 @@ use crate::{
     config,
     error::{Error, Result},
     git, image_metadata, image_processor,
+    secret::Secret,
 };
+use subtle::ConstantTimeEq;
 
 struct SseConnectionGuard;
 
@@ -103,11 +105,13 @@ impl Serialize for ImageMetadata {
 struct AppState {
     tx: broadcast::Sender<String>,
     revision_cache: Arc<RwLock<HashSet<String>>>,
+    upload_tokens: Arc<Vec<Secret>>,
 }
 
 pub fn create_router(
     data_home: std::path::PathBuf,
     metrics_handle: metrics_exporter_prometheus::PrometheusHandle,
+    upload_tokens: Vec<Secret>,
 ) -> Router {
     // Create broadcast channel for SSE events (capacity of 100 events)
     let (tx, _rx) = broadcast::channel(100);
@@ -128,7 +132,11 @@ pub fn create_router(
     crate::metrics::set_images_total(initial_cache_size);
     crate::metrics::set_revision_cache_size(initial_cache_size);
 
-    let state = AppState { tx, revision_cache };
+    let state = AppState {
+        tx,
+        revision_cache,
+        upload_tokens: Arc::new(upload_tokens),
+    };
 
     let app_routes = Router::new()
         .route("/", get(index_handler))
@@ -272,7 +280,17 @@ fn get_image_list(config: &config::ServerConfig) -> Result<Vec<git::CommitMetada
     Ok(images)
 }
 
-async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart) -> Response {
+async fn upload_handler(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    mut multipart: Multipart,
+) -> Response {
+    if !upload_authorized(&headers, &state.upload_tokens) {
+        tracing::warn!("Rejecting upload with missing or invalid token");
+        crate::metrics::record_upload("unauthorized");
+        return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
+    }
+
     let mut image_bytes: Option<Vec<u8>> = None;
     let mut metadata: Option<UploadMetadata> = None;
 
@@ -487,6 +505,76 @@ fn validate_path_component(value: &str, field: &'static str) -> Result<()> {
     }
 }
 
+/// Returns true if the request is allowed to upload. With no tokens configured
+/// every request is allowed (the daemon refuses to bind to a non-loopback
+/// address in that case, see [`ensure_bind_is_authorized`]). Otherwise the
+/// request must carry a `Authorization: Bearer <token>` header matching one of
+/// the configured tokens.
+fn upload_authorized(headers: &axum::http::HeaderMap, tokens: &[Secret]) -> bool {
+    if tokens.is_empty() {
+        return true;
+    }
+
+    let Some(provided) = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+    else {
+        return false;
+    };
+
+    // Compare against every token without short-circuiting so the work does not
+    // depend on which token (if any) matches.
+    let mut matched = subtle::Choice::from(0u8);
+    for token in tokens {
+        matched |= token.expose().as_bytes().ct_eq(provided.as_bytes());
+    }
+    matched.into()
+}
+
+/// Refuse to run open to the network: if bound to a non-loopback address, at
+/// least one upload token must be configured.
+pub fn ensure_bind_is_authorized(bind_address: &str, upload_tokens: &[Secret]) -> Result<()> {
+    if upload_tokens.is_empty() && !is_loopback_bind(bind_address) {
+        return Err(Error::ServerBindWithoutAuth {
+            bind_address: bind_address.to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn is_loopback_bind(bind_address: &str) -> bool {
+    if bind_address == "localhost" {
+        return true;
+    }
+    bind_address
+        .parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
+}
+
+/// Load upload tokens from a systemd credential (one token per non-empty line)
+/// when `$CREDENTIALS_DIRECTORY` is set and the named credential exists.
+/// Returns an empty vec otherwise, so this is safe to call unconditionally.
+pub fn load_credential_tokens(name: &str) -> Result<Vec<Secret>> {
+    let Some(dir) = std::env::var_os("CREDENTIALS_DIRECTORY") else {
+        return Ok(Vec::new());
+    };
+
+    let path = std::path::Path::new(&dir).join(name);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let contents = std::fs::read_to_string(&path)?;
+    Ok(contents
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(Secret::new)
+        .collect())
+}
+
 fn get_output_path(
     config: &config::ServerConfig,
     repo_name: &str,
@@ -586,6 +674,83 @@ mod tests {
         let config = server_config_with_images_dir(dir.path());
         let result = get_output_path(&config, "/tmp/evil", "abc1234");
         assert!(matches!(result, Err(Error::PathTraversal { .. })));
+        Ok(())
+    }
+
+    fn auth_headers(value: &'static str) -> axum::http::HeaderMap {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            axum::http::HeaderValue::from_static(value),
+        );
+        headers
+    }
+
+    #[test]
+    fn upload_authorized_allows_when_no_tokens_configured() {
+        assert!(upload_authorized(&axum::http::HeaderMap::new(), &[]));
+    }
+
+    #[test]
+    fn upload_authorized_rejects_missing_or_wrong_token() {
+        let tokens = [Secret::new("right")];
+        assert!(!upload_authorized(&axum::http::HeaderMap::new(), &tokens));
+        assert!(!upload_authorized(&auth_headers("Bearer wrong"), &tokens));
+        assert!(!upload_authorized(&auth_headers("right"), &tokens)); // no scheme
+        assert!(!upload_authorized(&auth_headers("Basic right"), &tokens));
+    }
+
+    #[test]
+    fn upload_authorized_accepts_matching_token_from_set() {
+        let tokens = [Secret::new("alpha"), Secret::new("bravo")];
+        assert!(upload_authorized(&auth_headers("Bearer bravo"), &tokens));
+    }
+
+    #[test]
+    fn ensure_bind_is_authorized_requires_token_for_non_loopback() {
+        assert!(matches!(
+            ensure_bind_is_authorized("0.0.0.0", &[]),
+            Err(Error::ServerBindWithoutAuth { .. })
+        ));
+        assert!(matches!(
+            ensure_bind_is_authorized("192.168.1.10", &[]),
+            Err(Error::ServerBindWithoutAuth { .. })
+        ));
+    }
+
+    #[test]
+    fn ensure_bind_is_authorized_allows_loopback_without_token() -> Result<()> {
+        ensure_bind_is_authorized("127.0.0.1", &[])?;
+        ensure_bind_is_authorized("::1", &[])?;
+        ensure_bind_is_authorized("localhost", &[])?;
+        Ok(())
+    }
+
+    #[test]
+    fn ensure_bind_is_authorized_allows_non_loopback_with_token() -> Result<()> {
+        ensure_bind_is_authorized("0.0.0.0", &[Secret::new("t")])
+    }
+
+    #[test]
+    fn load_credential_tokens_reads_non_empty_trimmed_lines() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        std::fs::write(dir.path().join("upload_tokens"), "one\n\n  two  \n")?;
+
+        let tokens = temp_env::with_var("CREDENTIALS_DIRECTORY", Some(dir.path()), || {
+            load_credential_tokens("upload_tokens")
+        })?;
+
+        let exposed: Vec<&str> = tokens.iter().map(Secret::expose).collect();
+        assert_eq!(exposed, vec!["one", "two"]);
+        Ok(())
+    }
+
+    #[test]
+    fn load_credential_tokens_absent_directory_is_empty() -> Result<()> {
+        let tokens = temp_env::with_var_unset("CREDENTIALS_DIRECTORY", || {
+            load_credential_tokens("upload_tokens")
+        })?;
+        assert!(tokens.is_empty());
         Ok(())
     }
 }

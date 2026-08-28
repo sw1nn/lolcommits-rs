@@ -105,6 +105,9 @@ pub enum Error {
     PathTraversal {
         name: String,
     },
+    ServerBindWithoutAuth {
+        bind_address: String,
+    },
 
     UnknownCameraFormat {
         format: String,

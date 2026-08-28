@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::secret::Secret;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use xdg::BaseDirectories;
@@ -99,6 +100,10 @@ pub struct ClientConfig {
     pub server_url: String,
 
     pub server_upload_timeout_secs: u64,
+
+    /// Bearer token presented on upload. Must match one of the server's
+    /// `upload_tokens`.
+    pub upload_token: Option<Secret>,
 }
 
 /// Deserialization shim for [`ClientConfig`] that also accepts the legacy
@@ -120,6 +125,9 @@ struct ClientConfigRepr {
 
     #[serde(default = "default_server_upload_timeout_secs")]
     server_upload_timeout_secs: u64,
+
+    #[serde(default)]
+    upload_token: Option<Secret>,
 }
 
 impl From<ClientConfigRepr> for ClientConfig {
@@ -137,6 +145,7 @@ impl From<ClientConfigRepr> for ClientConfig {
             camera_warmup_frames: repr.camera_warmup_frames,
             server_url: repr.server_url,
             server_upload_timeout_secs: repr.server_upload_timeout_secs,
+            upload_token: repr.upload_token,
         }
     }
 }
@@ -169,6 +178,11 @@ pub struct ServerConfig {
 
     #[serde(default = "default_burned_in_chyron")]
     pub burned_in_chyron: bool,
+
+    /// Accepted bearer tokens for POST /api/upload. Empty disables the check,
+    /// which is only allowed when bound to a loopback address.
+    #[serde(default)]
+    pub upload_tokens: Vec<Secret>,
 }
 
 fn default_font_name() -> String {
@@ -236,7 +250,9 @@ fn default_models_dir() -> String {
 }
 
 fn default_bind_address() -> String {
-    "0.0.0.0".to_string()
+    // Loopback by default: the daemon is expected to sit behind a reverse proxy.
+    // Binding to a non-loopback address requires configuring upload_tokens.
+    "127.0.0.1".to_string()
 }
 
 fn default_bind_port() -> u16 {
@@ -265,6 +281,7 @@ impl Default for ClientConfig {
             camera_warmup_frames: default_camera_warmup_frames(),
             server_url: default_server_url(),
             server_upload_timeout_secs: default_server_upload_timeout_secs(),
+            upload_token: None,
         }
     }
 }
@@ -281,6 +298,7 @@ impl Default for ServerConfig {
             bind_port: default_bind_port(),
             log_output: crate::LogOutput::default(),
             burned_in_chyron: default_burned_in_chyron(),
+            upload_tokens: Vec::new(),
         }
     }
 }
@@ -542,8 +560,9 @@ mod tests {
     #[test]
     fn test_default_bind_address_and_port() {
         let server = ServerConfig::default();
-        assert_eq!(server.bind_address, "0.0.0.0");
+        assert_eq!(server.bind_address, "127.0.0.1");
         assert_eq!(server.bind_port, 3000);
+        assert!(server.upload_tokens.is_empty());
     }
 
     #[test]
