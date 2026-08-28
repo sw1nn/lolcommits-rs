@@ -20,7 +20,11 @@ use tower_http::{
     trace::{DefaultMakeSpan, TraceLayer},
 };
 
-use crate::{config, error::Result, git, image_metadata, image_processor};
+use crate::{
+    config,
+    error::{Error, Result},
+    git, image_metadata, image_processor,
+};
 
 struct SseConnectionGuard;
 
@@ -314,6 +318,16 @@ async fn upload_handler(State(state): State<AppState>, mut multipart: Multipart)
         return (StatusCode::BAD_REQUEST, "Missing metadata field").into_response();
     };
 
+    // Reject client-controlled fields that are interpolated into the output
+    // filename before doing any work, so they cannot escape images_dir.
+    if let Err(e) = validate_path_component(&metadata.repo_name, "repo_name")
+        .and_then(|()| validate_path_component(&metadata.revision, "revision"))
+    {
+        tracing::warn!(error = %e, "Rejecting upload with invalid metadata");
+        crate::metrics::record_upload("rejected");
+        return (StatusCode::BAD_REQUEST, "Invalid metadata").into_response();
+    }
+
     tracing::info!(
         revision = %metadata.revision,
         repo = %metadata.repo_name,
@@ -454,6 +468,25 @@ fn persist_image(temp_file: tempfile::NamedTempFile, output_path: &std::path::Pa
     Ok(())
 }
 
+/// Reject a client-supplied value that is interpolated into the output
+/// filename. Allows only a conservative filename-safe charset, so the value
+/// cannot introduce a path separator, `..`, or an absolute path.
+fn validate_path_component(value: &str, field: &'static str) -> Result<()> {
+    let valid = !value.is_empty()
+        && value.len() <= 128
+        && value != "."
+        && value != ".."
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+
+    if valid {
+        Ok(())
+    } else {
+        Err(Error::InvalidUploadField { field })
+    }
+}
+
 fn get_output_path(
     config: &config::ServerConfig,
     repo_name: &str,
@@ -465,7 +498,16 @@ fn get_output_path(
     std::fs::create_dir_all(&images_dir)?;
 
     let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let filename = format!("{}-{}-{}.png", repo_name, timestamp, commit_sha);
+    let filename = format!("{repo_name}-{timestamp}-{commit_sha}.png");
+
+    // Defense in depth: the filename must be exactly one normal path component
+    // (no separators, no `..`, not absolute) so join() cannot escape
+    // images_dir, even if a caller skipped input validation.
+    let mut components = std::path::Path::new(&filename).components();
+    match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(_)), None) => {}
+        _ => return Err(Error::PathTraversal { name: filename }),
+    }
 
     let output_path = images_dir.join(filename);
 
@@ -490,6 +532,60 @@ mod tests {
 
         let mode = std::fs::metadata(&output_path)?.permissions().mode() & 0o777;
         assert_eq!(mode, 0o644, "stored image mode {mode:o} is not 644");
+        Ok(())
+    }
+
+    fn server_config_with_images_dir(dir: &std::path::Path) -> config::ServerConfig {
+        config::ServerConfig {
+            images_dir: dir.to_string_lossy().into_owned(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn validate_path_component_accepts_safe_values() -> Result<()> {
+        for value in ["my-repo", "repo_1", "abc123def0", "a.b", "0"] {
+            validate_path_component(value, "repo_name")?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn validate_path_component_rejects_traversal_and_separators() {
+        for value in [
+            "", ".", "..", "../etc", "a/b", "/abs", "a\\b", "a b", "a%2fb", "a\0b",
+        ] {
+            assert!(
+                validate_path_component(value, "repo_name").is_err(),
+                "expected {value:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn get_output_path_confines_valid_input_to_images_dir() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let config = server_config_with_images_dir(dir.path());
+        let path = get_output_path(&config, "repo", "abc1234")?;
+        assert_eq!(path.parent(), Some(dir.path()));
+        Ok(())
+    }
+
+    #[test]
+    fn get_output_path_rejects_relative_traversal() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let config = server_config_with_images_dir(dir.path());
+        let result = get_output_path(&config, "../../etc/evil", "abc1234");
+        assert!(matches!(result, Err(Error::PathTraversal { .. })));
+        Ok(())
+    }
+
+    #[test]
+    fn get_output_path_rejects_absolute_repo_name() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let config = server_config_with_images_dir(dir.path());
+        let result = get_output_path(&config, "/tmp/evil", "abc1234");
+        assert!(matches!(result, Err(Error::PathTraversal { .. })));
         Ok(())
     }
 }

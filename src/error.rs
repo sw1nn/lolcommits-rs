@@ -99,6 +99,13 @@ pub enum Error {
         body: String,
     },
 
+    InvalidUploadField {
+        field: &'static str,
+    },
+    PathTraversal {
+        name: String,
+    },
+
     UnknownCameraFormat {
         format: String,
     },
