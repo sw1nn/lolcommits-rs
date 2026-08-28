@@ -171,6 +171,90 @@ info_font_size = 24.0
 chyron_opacity = 0.5
 ```
 
+## Server Deployment
+
+`lolcommitsd` serves the gallery and receives uploads from `lolcommits-ctl`. It
+is designed to run behind a reverse proxy.
+
+### Network binding
+
+By default the server binds `127.0.0.1:3000`, so it is only reachable through a
+reverse proxy on the same host. Set `bind_address`/`bind_port` to change this.
+
+```toml
+[server]
+bind_address = "127.0.0.1"
+bind_port = 3000
+```
+
+> [!WARNING]
+> The daemon refuses to start on a non-loopback address (for example
+> `0.0.0.0`) unless at least one upload token is configured. This prevents the
+> upload endpoint from being served unauthenticated.
+
+### Upload authentication
+
+`POST /api/upload` requires a bearer token. The server accepts a list of valid
+tokens; each client sends one of them. Tokens are compared in constant time and
+are redacted from logs.
+
+Server:
+
+```toml
+[server]
+upload_tokens = ["token-for-laptop", "token-for-ci"]
+```
+
+Client, on each machine running the git hook:
+
+```toml
+[client]
+server_url = "https://lolcommits.example.net"
+upload_token = "token-for-laptop"
+```
+
+#### Supplying tokens with systemd credentials
+
+Rather than storing tokens in `config.toml`, provide them at runtime. The daemon
+reads `$CREDENTIALS_DIRECTORY/upload_tokens` (one token per line) and merges
+them with any `upload_tokens` from config.
+
+```ini
+[Service]
+LoadCredential=upload_tokens:/etc/lolcommits/upload_tokens
+# or, encrypted at rest with `systemd-creds encrypt`:
+# LoadCredentialEncrypted=upload_tokens:/etc/lolcommits/upload_tokens.cred
+ExecStart=/usr/bin/lolcommitsd
+```
+
+### Gallery access control (reverse proxy SSO)
+
+The gallery and read endpoints are not authenticated by the application; place
+them behind your reverse proxy's SSO (for example Authelia forward-auth). The
+upload endpoint authenticates itself with a bearer token, so it must **bypass**
+the SSO portal — a git hook cannot complete an interactive login.
+
+Example Authelia access-control rules (the bypass rule must come first):
+
+```yaml
+access_control:
+  rules:
+    # Uploads authenticate in-app via bearer token, not the SSO portal.
+    - domain: lolcommits.example.net
+      resources: ['^/api/upload$']
+      policy: bypass
+    # Everything else requires SSO.
+    - domain: lolcommits.example.net
+      policy: two_factor
+```
+
+The forward-auth middleware that enforces these rules is configured on the
+reverse proxy itself (Traefik / nginx / Caddy) and must route `/api/upload` to
+the daemon without the auth middleware attached.
+
+> [!NOTE]
+> Do not expose `/metrics` through the public proxy; scrape it over loopback.
+
 ## Automatic Cleanup
 
 For information on setting up automatic cleanup of old lolcommit images using systemd-tmpfiles, see [docs/automatic-cleanup.md](docs/automatic-cleanup.md).
