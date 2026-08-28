@@ -1,5 +1,6 @@
 use crate::error::{Error::*, Result};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 // Using U2Net model for background segmentation
@@ -64,10 +65,22 @@ fn download_model(path: impl AsRef<Path>) -> Result {
     }
     tracing::debug!(checksum, "Model checksum verified");
 
+    // Write to a temp file in the same directory, then atomically rename into
+    // place. An interrupted write (Ctrl-C, timeout, disk full, power loss) then
+    // leaves no partial file to poison the cache on the next run.
     let path_ref = path.as_ref();
-    fs::write(path_ref, &bytes).map_err(|source| ModelFileWrite {
+    let dir = path_ref.parent().unwrap_or_else(|| Path::new("."));
+    let mut temp = tempfile::NamedTempFile::new_in(dir).map_err(|source| ModelFileWrite {
         path: path_ref.to_path_buf(),
         source,
+    })?;
+    temp.write_all(&bytes).map_err(|source| ModelFileWrite {
+        path: path_ref.to_path_buf(),
+        source,
+    })?;
+    temp.persist(path_ref).map_err(|e| ModelFileWrite {
+        path: path_ref.to_path_buf(),
+        source: e.error,
     })?;
 
     tracing::debug!(path = ?path_ref, size = bytes.len(), "Model saved successfully");
