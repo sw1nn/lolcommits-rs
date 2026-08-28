@@ -52,11 +52,22 @@ pub fn init_tracing_with_output(output: LogOutput) {
 
     if use_stdout {
         tracing_subscriber::fmt().with_env_filter(env_filter).init();
-    } else {
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(tracing_journald::layer().expect("Failed to connect to journald"))
-            .init();
+        return;
+    }
+
+    // journald can be unavailable even without a terminal (piped output, a
+    // container without systemd). Fall back to stdout instead of panicking.
+    match tracing_journald::layer() {
+        Ok(layer) => {
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(layer)
+                .init();
+        }
+        Err(error) => {
+            tracing_subscriber::fmt().with_env_filter(env_filter).init();
+            tracing::warn!(%error, "journald unavailable, falling back to stdout logging");
+        }
     }
 }
 
