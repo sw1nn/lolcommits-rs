@@ -88,20 +88,57 @@ pub struct BurnedInChyronConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "ClientConfigRepr")]
 pub struct ClientConfig {
     /// List of camera devices to try in order. First working camera is used.
     /// Each camera can have its own format/resolution settings.
-    #[serde(default = "default_camera_devices")]
     pub camera_devices: Vec<CameraDeviceConfig>,
 
-    #[serde(default = "default_camera_warmup_frames")]
     pub camera_warmup_frames: usize,
 
-    #[serde(default = "default_server_url")]
     pub server_url: String,
 
-    #[serde(default = "default_server_upload_timeout_secs")]
     pub server_upload_timeout_secs: u64,
+}
+
+/// Deserialization shim for [`ClientConfig`] that also accepts the legacy
+/// singular `camera_device = "..."` key (documented in older configs) and
+/// maps it to a single-element `camera_devices`.
+#[derive(Deserialize)]
+struct ClientConfigRepr {
+    #[serde(default)]
+    camera_devices: Option<Vec<CameraDeviceConfig>>,
+
+    #[serde(default)]
+    camera_device: Option<String>,
+
+    #[serde(default = "default_camera_warmup_frames")]
+    camera_warmup_frames: usize,
+
+    #[serde(default = "default_server_url")]
+    server_url: String,
+
+    #[serde(default = "default_server_upload_timeout_secs")]
+    server_upload_timeout_secs: u64,
+}
+
+impl From<ClientConfigRepr> for ClientConfig {
+    fn from(repr: ClientConfigRepr) -> Self {
+        // Prefer the modern `camera_devices` list; fall back to the legacy
+        // singular `camera_device`; otherwise use the default device.
+        let camera_devices = repr.camera_devices.unwrap_or_else(|| {
+            repr.camera_device
+                .map(|device| vec![CameraDeviceConfig::new(device)])
+                .unwrap_or_else(default_camera_devices)
+        });
+
+        Self {
+            camera_devices,
+            camera_warmup_frames: repr.camera_warmup_frames,
+            server_url: repr.server_url,
+            server_upload_timeout_secs: repr.server_upload_timeout_secs,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,9 +176,12 @@ fn default_font_name() -> String {
 }
 
 fn default_background_path() -> String {
+    // get_data_home() is None when neither $XDG_DATA_HOME nor $HOME is set
+    // (e.g. a HOME-less systemd/container daemon). Fall back to the system data
+    // dir rather than panicking inside a serde default / Default impl.
     BaseDirectories::with_prefix(XDG_PREFIX)
         .get_data_home()
-        .expect("XDG not configured")
+        .unwrap_or_else(|| PathBuf::from("/var/lib/lolcommits"))
         .join("background.png")
         .to_string_lossy()
         .to_string()
@@ -280,6 +320,7 @@ impl Config {
     /// 1. /etc/sw1nn/lolcommits/config.toml (system-wide)
     /// 2. XDG_CONFIG_HOME/lolcommits/config.toml (user-specific)
     pub fn load_from(config_path: Option<PathBuf>) -> Result<Self> {
+        let explicit = config_path.is_some();
         let config_path = if let Some(path) = config_path {
             // Use explicit path if provided
             path
@@ -300,6 +341,12 @@ impl Config {
         };
 
         if !config_path.exists() {
+            // An explicitly requested path that does not exist is a user error:
+            // fail instead of silently running defaults and clobbering the XDG
+            // config on the next save().
+            if explicit {
+                return Err(Error::ConfigFileNotFound { path: config_path });
+            }
             tracing::info!(path = %config_path.display(), "Config file not found, creating default");
             let default_config = Config::default();
             default_config.save()?;
@@ -342,9 +389,11 @@ impl Config {
 
     /// Get the path to the config file
     pub fn config_path() -> PathBuf {
+        // Fall back to the system config dir when XDG dirs are unavailable
+        // (no $XDG_CONFIG_HOME and no $HOME) instead of panicking.
         BaseDirectories::with_prefix(XDG_PREFIX)
             .get_config_home()
-            .expect("XDG not configured")
+            .unwrap_or_else(|| PathBuf::from("/etc/sw1nn/lolcommits"))
     }
 }
 
@@ -554,5 +603,45 @@ mod tests {
         let config: Config = toml::from_str(toml_str).unwrap();
         let server = config.server.unwrap();
         assert!(server.burned_in_chyron);
+    }
+
+    #[test]
+    fn load_from_explicit_missing_path_errors() -> Result<()> {
+        let missing = PathBuf::from("/nonexistent/definitely/not/here/config.toml");
+        let result = Config::load_from(Some(missing.clone()));
+        assert!(
+            matches!(result, Err(Error::ConfigFileNotFound { path }) if path == missing),
+            "expected ConfigFileNotFound for an explicit missing path"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_camera_device_key_maps_to_camera_devices() -> Result<()> {
+        let toml_str = r#"
+            [client]
+            camera_device = "/dev/video2"
+        "#;
+        let config: Config = toml::from_str(toml_str)?;
+        let devices = config.client.map(|c| c.camera_devices).unwrap_or_default();
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].device, "/dev/video2");
+        Ok(())
+    }
+
+    #[test]
+    fn new_camera_devices_key_takes_precedence_over_legacy() -> Result<()> {
+        let toml_str = r#"
+            [client]
+            camera_device = "0"
+
+            [[client.camera_devices]]
+            device = "/dev/video9"
+        "#;
+        let config: Config = toml::from_str(toml_str)?;
+        let devices = config.client.map(|c| c.camera_devices).unwrap_or_default();
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].device, "/dev/video9");
+        Ok(())
     }
 }

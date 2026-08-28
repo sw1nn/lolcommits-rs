@@ -46,6 +46,9 @@ pub enum Error {
     NoRepoName,
     GitCommandFailed,
 
+    ConfigFileNotFound {
+        path: PathBuf,
+    },
     ConfigFileRead {
         path: PathBuf,
         source: std::io::Error,
