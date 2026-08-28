@@ -190,7 +190,9 @@ pub fn get_commit_message(repo: &Repository, sha: &str) -> Result<String> {
     let obj = repo.revparse_single(sha)?;
     let commit = repo.find_commit(obj.id())?;
 
-    Ok(commit.message()?.to_owned())
+    // Use message_bytes() with lossy conversion: message() errors on non-UTF-8
+    // messages (e.g. latin-1), which would abort capture instead of degrading.
+    Ok(String::from_utf8_lossy(commit.message_bytes()).into_owned())
 }
 
 /// Parse the commit type from a conventional commit message
