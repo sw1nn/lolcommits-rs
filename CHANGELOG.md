@@ -2,6 +2,22 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v3.0.0 - 2026-08-28
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**server**) authenticate uploads with bearer tokens - (701caee) - Neale Swinnerton
+#### Bug Fixes
+- (**config**) harden config loading - (4a15c6f) - Neale Swinnerton
+- (**git**) handle non-UTF-8 commit messages - (d24106b) - Neale Swinnerton
+- (**image**) avoid chyron panics on small images and non-ASCII revisions - (e06347e) - Neale Swinnerton
+- (**logging**) fall back to stdout when journald is unavailable - (276ebca) - Neale Swinnerton
+- (**segmentation**) write model atomically to prevent cache poisoning - (7d58611) - Neale Swinnerton
+- (**server**) prevent path traversal in upload output path - (3a047b6) - Neale Swinnerton
+- (**server**) store uploaded images with world-readable permissions - (6db703b) - Neale Swinnerton
+#### Documentation
+- (**server**) document upload authentication and access control - (ff996d0) - Neale Swinnerton
+
+- - -
+
 ## v2.0.0 - 2026-08-26
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**cli**) replace lolcommits_upload with lolcommits-ctl - (2519022) - Neale Swinnerton
