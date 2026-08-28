@@ -437,7 +437,9 @@ pub fn burn_in_chyron(
     let (width, height) = rgba_image.dimensions();
 
     let chyron_height = 80;
-    let y_start = height - chyron_height;
+    // saturating_sub: an uploaded image shorter than the chyron would otherwise
+    // underflow (panic in debug, wrap in release).
+    let y_start = height.saturating_sub(chyron_height);
 
     // Manually apply semi-transparent black with proper alpha blending
     let overlay_alpha = config.chyron_opacity;
@@ -540,11 +542,9 @@ pub fn burn_in_chyron(
 
     // Draw revision on the right side of the title line, left-aligned with stats
     if !metadata.revision.is_empty() {
-        let revision_short = if metadata.revision.len() > 7 {
-            &metadata.revision[..7]
-        } else {
-            &metadata.revision
-        };
+        // Take the first 7 characters, not bytes: a non-ASCII revision would
+        // otherwise panic slicing on a non-char-boundary.
+        let revision_short: String = metadata.revision.chars().take(7).collect();
         draw_text_mut(
             &mut rgba_image,
             yellow,
@@ -552,7 +552,7 @@ pub fn burn_in_chyron(
             title_y,
             title_scale,
             &sha_font,
-            revision_short,
+            &revision_short,
         );
     }
 
@@ -756,5 +756,42 @@ mod tests {
         // Test loading monospace font
         let result = load_font("monospace");
         assert!(result.is_ok());
+    }
+
+    fn sample_metadata(revision: &str) -> CommitMetadata {
+        CommitMetadata {
+            path: std::path::PathBuf::new(),
+            revision: revision.to_owned(),
+            message: "feat(scope): hello".to_owned(),
+            commit_type: "feat".to_owned(),
+            scope: "scope".to_owned(),
+            timestamp: "2026-01-01 00:00:00".to_owned(),
+            repo_name: "repo".to_owned(),
+            branch_name: "main".to_owned(),
+            stats: crate::git::DiffStats {
+                files_changed: 1,
+                insertions: 2,
+                deletions: 0,
+            },
+        }
+    }
+
+    #[test]
+    fn burn_in_chyron_handles_image_shorter_than_chyron() -> Result<()> {
+        // A 32px-tall image is shorter than the 80px chyron: height - chyron_height
+        // must not underflow.
+        let config = crate::config::BurnedInChyronConfig::default();
+        let image = DynamicImage::new_rgb8(64, 32);
+        burn_in_chyron(&config, image, &sample_metadata("abcdef1"))?;
+        Ok(())
+    }
+
+    #[test]
+    fn burn_in_chyron_handles_multibyte_revision() -> Result<()> {
+        // "ééééé" is 5 chars / 10 bytes; byte index 7 is not a char boundary.
+        let config = crate::config::BurnedInChyronConfig::default();
+        let image = DynamicImage::new_rgb8(400, 300);
+        burn_in_chyron(&config, image, &sample_metadata("ééééé"))?;
+        Ok(())
     }
 }
