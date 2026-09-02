@@ -46,6 +46,9 @@ chmod +x .git/hooks/post-commit
 The client is `lolcommits-ctl`:
 
 ```bash
+# Sign in once per machine (opens your browser to approve the device)
+lolcommits-ctl login
+
 # Capture and upload a snapshot for HEAD
 lolcommits-ctl upload
 
@@ -57,7 +60,22 @@ lolcommits-ctl upload --force
 
 # Exit 0 instead of failing when the camera is in use (useful in a git hook)
 lolcommits-ctl upload --quiet
+
+# Discard the stored credentials
+lolcommits-ctl logout
 ```
+
+Uploads are authenticated, so `lolcommits-ctl login` must be run once on each
+machine. The access token is refreshed silently for as long as the refresh
+token is valid; when it is not, the upload fails with:
+
+```
+error: not logged in or session expired
+       run: lolcommits-ctl login
+```
+
+That is the intended behaviour in a git hook — the hook runs in your terminal
+in response to `git commit`, so you are there to act on it.
 
 ### Shell Completions
 
@@ -187,45 +205,62 @@ bind_address = "127.0.0.1"
 bind_port = 3000
 ```
 
-> [!WARNING]
-> The daemon refuses to start on a non-loopback address (for example
-> `0.0.0.0`) unless at least one upload token is configured. This prevents the
-> upload endpoint from being served unauthenticated.
+> [!NOTE]
+> `/api/upload` authenticates every request in the application, so a
+> non-loopback bind does not expose an unauthenticated upload endpoint. The
+> gallery is unauthenticated by design either way, so still keep the daemon
+> behind a proxy you control.
 
 ### Upload authentication
 
-`POST /api/upload` requires a bearer token. The server accepts a list of valid
-tokens; each client sends one of them. Tokens are compared in constant time and
-are redacted from logs.
+`POST /api/upload` requires an OpenID Connect access token issued to the
+`lolcommits-cli` client. `lolcommits-ctl login` obtains one with the device
+authorization grant (RFC 8628); the daemon verifies it offline against the
+issuer's cached JWKS. No introspection or userinfo call is made per request, so
+uploads do not depend on the identity provider being reachable.
 
-Server:
-
-```toml
-[server]
-upload_tokens = ["token-for-laptop", "token-for-ci"]
-```
-
-Client, on each machine running the git hook:
+Both sides read the same `[auth]` section:
 
 ```toml
-[client]
-server_url = "https://lolcommits.example.net"
-upload_token = "token-for-laptop"
+[auth]
+issuer = "https://auth.example.net"
+client_id = "lolcommits-cli"
+required_group = "lolcommits"   # server only
+
+# Endpoint URLs are derived from `issuer` unless set explicitly:
+# jwks_url = "https://auth.example.net/jwks.json"
+# device_authorization_url = "https://auth.example.net/api/oidc/device-authorization"
+# token_url = "https://auth.example.net/api/oidc/token"
+# scopes = ["openid", "profile", "groups", "offline_access"]
 ```
 
-#### Supplying tokens with systemd credentials
+The client must be registered as a **public** client (no client secret, token
+endpoint auth method `none`) with the `device_code` and `refresh_token` grants.
 
-Rather than storing tokens in `config.toml`, provide them at runtime. The daemon
-reads `$CREDENTIALS_DIRECTORY/upload_tokens` (one token per line) and merges
-them with any `upload_tokens` from config.
+The daemon checks, in order: the RS256 signature against the JWKS key matching
+the token's `kid`; `iss`; `client_id`; `exp`/`nbf` with 60s of leeway; and
+finally that `groups` contains `required_group`. A request with no usable
+bearer token gets `401`; a valid token whose holder lacks the group gets `403`.
+Uploads are logged with the caller's `sub` and `preferred_username`; token
+contents are never logged.
 
-```ini
-[Service]
-LoadCredential=upload_tokens:/etc/lolcommits/upload_tokens
-# or, encrypted at rest with `systemd-creds encrypt`:
-# LoadCredentialEncrypted=upload_tokens:/etc/lolcommits/upload_tokens.cred
-ExecStart=/usr/bin/lolcommitsd
-```
+> [!IMPORTANT]
+> Authorization is on `groups`, never on `scp`. The client is public, so a
+> caller can request any scope it likes — only the issuer controls group
+> membership. `required_group` is matched exactly, so a broad group such as
+> `admins` grants nothing on its own.
+
+> [!NOTE]
+> The `aud` claim is empty on device-grant tokens from some issuers (Authelia
+> among them), so `client_id` is what stops a token minted for another service
+> being replayed here. Do not replace that check with an `aud` check without
+> first confirming against a live token that `aud` is populated.
+
+#### Client credential storage
+
+`lolcommits-ctl` stores its tokens in the Secret Service (GNOME Keyring,
+KWallet, KeePassXC). On a headless host with no Secret Service provider it
+falls back to a `0600` file at `$XDG_STATE_HOME/lolcommits/tokens.json`.
 
 ### Upload concurrency limit
 
@@ -240,30 +275,17 @@ with `429 Too Many Requests` instead of queueing unbounded work. It defaults to
 max_concurrent_uploads = 4
 ```
 
-### Gallery access control (reverse proxy SSO)
+### Gallery access control
 
-The gallery and read endpoints are not authenticated by the application; place
-them behind your reverse proxy's SSO (for example Authelia forward-auth). The
-upload endpoint authenticates itself with a bearer token, so it must **bypass**
-the SSO portal — a git hook cannot complete an interactive login.
+The gallery and the read endpoints are unauthenticated, for browsers. Only
+`/api/upload` is gated, and it is gated in the application.
 
-Example Authelia access-control rules (the bypass rule must come first):
-
-```yaml
-access_control:
-  rules:
-    # Uploads authenticate in-app via bearer token, not the SSO portal.
-    - domain: lolcommits.example.net
-      resources: ['^/api/upload$']
-      policy: bypass
-    # Everything else requires SSO.
-    - domain: lolcommits.example.net
-      policy: two_factor
-```
-
-The forward-auth middleware that enforces these rules is configured on the
-reverse proxy itself (Traefik / nginx / Caddy) and must route `/api/upload` to
-the daemon without the auth middleware attached.
+> [!WARNING]
+> Do not put an interactive SSO forward-auth middleware in front of this vhost.
+> `lolcommits-ctl` cannot follow a login redirect, so it would break every
+> upload, and it turns a health probe's expected `200` into a `302`. If the
+> gallery needs to be private, serve it from a separate vhost from
+> `/api/upload` rather than gating them together.
 
 > [!NOTE]
 > Do not expose `/metrics` through the public proxy; scrape it over loopback.

@@ -15,14 +15,26 @@
 //!   Log the error and exit with error.
 //! - **Upload success** (camera capture succeeds, server returns 2xx): Log the response body at
 //!   INFO level.
+//! - **Not logged in** (no stored credentials, or the issuer refuses the refresh): Exit with
+//!   error, telling the user to run `lolcommits-ctl login`. A failed refresh that was not a
+//!   refusal — a network or DNS failure — is reported as itself instead.
 
 use crate::{
-    camera, config,
+    camera,
+    config::{self, AuthConfig},
     error::{Error, Result},
-    git,
+    git, oidc,
+    oidc::TokenSet,
+    secret::Secret,
+    token_store,
 };
+use reqwest::blocking;
 use serde::Serialize;
 use std::io::Cursor;
+
+/// Refresh an access token this many seconds before it actually expires, so a
+/// slow upload cannot start with a token that dies mid-request.
+const TOKEN_EXPIRY_LEEWAY_SECS: i64 = 60;
 
 pub struct CaptureArgs {
     pub revision: String,
@@ -47,6 +59,7 @@ struct UploadMetadata {
 pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()> {
     // Get client config, defaulting if not present in config file
     let client_config = config.client.clone().unwrap_or_default();
+    let auth_config = config.auth.clone().unwrap_or_default();
 
     let repo = git::open_repo()?;
 
@@ -105,13 +118,14 @@ pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()
     tracing::debug!(bytes = png_bytes.len(), "Encoded image to PNG");
 
     // Upload to server
-    upload_to_server(&client_config, png_bytes, metadata)?;
+    upload_to_server(&client_config, &auth_config, png_bytes, metadata)?;
 
     Ok(())
 }
 
 fn upload_to_server(
     config: &config::ClientConfig,
+    auth: &AuthConfig,
     image_bytes: Vec<u8>,
     metadata: UploadMetadata,
 ) -> Result<()> {
@@ -126,27 +140,32 @@ fn upload_to_server(
 
     let metadata_json = serde_json::to_string(&metadata)?;
 
-    let form = reqwest::blocking::multipart::Form::new()
-        .part(
-            "metadata",
-            reqwest::blocking::multipart::Part::text(metadata_json).mime_str("application/json")?,
-        )
-        .part(
-            "image",
-            reqwest::blocking::multipart::Part::bytes(image_bytes)
-                .file_name("image.png")
-                .mime_str("image/png")?,
-        );
-
-    let mut request = client.post(&url).multipart(form);
-    if let Some(token) = &config.upload_token {
-        request = request.bearer_auth(token.expose());
+    let mut tokens = token_store::load(auth)?.ok_or(Error::NotLoggedIn)?;
+    if tokens.is_expired(TOKEN_EXPIRY_LEEWAY_SECS) {
+        tokens = refresh_and_store(&client, auth, &tokens)?;
     }
 
-    let response = request.send().map_err(|e| Error::ServerConnectionFailed {
-        url: url.clone(),
-        source: e,
-    })?;
+    let mut response = send_upload(
+        &client,
+        &url,
+        &tokens.access_token,
+        &image_bytes,
+        &metadata_json,
+    )?;
+
+    // The daemon may reject a token this client still believes is valid (clock
+    // skew, a revoked session). Refresh once, then give up.
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        tracing::debug!("Upload rejected as unauthorized, refreshing access token");
+        let refreshed = refresh_and_store(&client, auth, &tokens)?;
+        response = send_upload(
+            &client,
+            &url,
+            &refreshed.access_token,
+            &image_bytes,
+            &metadata_json,
+        )?;
+    }
 
     let status = response.status();
     let body = response
@@ -166,5 +185,65 @@ fn upload_to_server(
             status: status.as_u16(),
             body,
         })
+    }
+}
+
+/// `multipart::Form` is not `Clone`, so each attempt needs its own.
+fn upload_form(image_bytes: &[u8], metadata_json: &str) -> Result<blocking::multipart::Form> {
+    Ok(blocking::multipart::Form::new()
+        .part(
+            "metadata",
+            blocking::multipart::Part::text(metadata_json.to_owned())
+                .mime_str("application/json")?,
+        )
+        .part(
+            "image",
+            blocking::multipart::Part::bytes(image_bytes.to_vec())
+                .file_name("image.png")
+                .mime_str("image/png")?,
+        ))
+}
+
+fn send_upload(
+    client: &blocking::Client,
+    url: &str,
+    access_token: &Secret,
+    image_bytes: &[u8],
+    metadata_json: &str,
+) -> Result<blocking::Response> {
+    client
+        .post(url)
+        .bearer_auth(access_token.expose())
+        .multipart(upload_form(image_bytes, metadata_json)?)
+        .send()
+        .map_err(|source| Error::ServerConnectionFailed {
+            url: url.to_owned(),
+            source,
+        })
+}
+
+fn refresh_and_store(
+    client: &blocking::Client,
+    auth: &AuthConfig,
+    tokens: &TokenSet,
+) -> Result<TokenSet> {
+    let refresh_token = tokens.refresh_token.as_ref().ok_or(Error::NotLoggedIn)?;
+
+    let refreshed = oidc::refresh(client, auth, refresh_token)
+        .inspect_err(|error| tracing::debug!(%error, "Access token refresh failed"))
+        .map_err(session_expiry)?;
+
+    token_store::save(auth, &refreshed)?;
+    Ok(refreshed)
+}
+
+/// A refresh the issuer actively refused means the session is gone as far as
+/// the user is concerned, so report the one useful next step. Anything else —
+/// DNS, a dead network, a 502 from a proxy — is reported as itself, because
+/// telling the user to log in again would send them into the same failure.
+fn session_expiry(error: Error) -> Error {
+    match error {
+        Error::TokenEndpointError { .. } | Error::TokenRequestFailed { .. } => Error::NotLoggedIn,
+        other => other,
     }
 }

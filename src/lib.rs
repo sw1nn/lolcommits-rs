@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod camera;
 pub mod capture;
 pub mod config;
@@ -6,9 +7,11 @@ pub mod git;
 pub mod image_metadata;
 pub mod image_processor;
 pub mod metrics;
+pub mod oidc;
 pub mod secret;
 pub mod segmentation;
 pub mod server;
+pub mod token_store;
 
 use std::io::IsTerminal;
 

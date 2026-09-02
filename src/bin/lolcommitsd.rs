@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::path::PathBuf;
-use sw1nn_lolcommits_rs::{LogOutput, config, init_tracing_with_output, server};
+use std::sync::Arc;
+use sw1nn_lolcommits_rs::{LogOutput, auth, config, init_tracing_with_output, server};
 
 #[derive(Parser, Debug)]
 #[command(name = "lolcommitsd")]
@@ -32,22 +33,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let images_dir = PathBuf::from(&server_cfg.images_dir);
 
-    // Effective tokens = config tokens plus any supplied via systemd credentials
-    // ($CREDENTIALS_DIRECTORY/upload_tokens, one token per line).
-    let mut upload_tokens = server_cfg.upload_tokens.clone();
-    upload_tokens.extend(server::load_credential_tokens("upload_tokens")?);
-
-    // Fail closed: never serve a non-loopback address without upload auth.
-    server::ensure_bind_is_authorized(&server_cfg.bind_address, &upload_tokens)?;
+    let auth_cfg = cfg.auth.clone().unwrap_or_default();
     tracing::info!(
-        token_count = upload_tokens.len(),
+        issuer = %auth_cfg.issuer,
+        client_id = %auth_cfg.client_id,
+        required_group = %auth_cfg.required_group,
         "Upload authentication configured"
     );
+    let authenticator = Arc::new(auth::Authenticator::new(auth_cfg).await);
 
     let app = server::create_router(
         images_dir,
         metrics_handle,
-        upload_tokens,
+        authenticator,
         server_cfg.max_concurrent_uploads,
     );
 

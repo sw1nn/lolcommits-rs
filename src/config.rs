@@ -1,5 +1,4 @@
 use crate::error::{Error, Result};
-use crate::secret::Secret;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use xdg::BaseDirectories;
@@ -59,6 +58,76 @@ pub struct Config {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub burned_in_chyron: Option<BurnedInChyronConfig>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthConfig>,
+}
+
+/// OpenID Connect settings shared by the daemon, which verifies access tokens,
+/// and the CLI, which obtains them through the device authorization grant.
+///
+/// The client is public (no client secret), so nothing here is sensitive.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// Token issuer. Must match the `iss` claim exactly, and is the base the
+    /// endpoint URLs below are derived from when they are not set explicitly.
+    #[serde(default = "default_auth_issuer")]
+    pub issuer: String,
+
+    /// This service's own OIDC client id. Tokens minted for any other client
+    /// are rejected: `aud` is empty on Authelia's device grant, so `client_id`
+    /// is what stops a token for another service being replayed here.
+    #[serde(default = "default_auth_client_id")]
+    pub client_id: String,
+
+    /// Group a caller must hold in `groups` to upload. Used by the daemon only.
+    #[serde(default = "default_auth_required_group")]
+    pub required_group: String,
+
+    /// Scopes requested at login. These are not an authorization boundary — a
+    /// public client can ask for anything — so the daemon gates on groups.
+    #[serde(default = "default_auth_scopes")]
+    pub scopes: Vec<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jwks_url: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_authorization_url: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_url: Option<String>,
+}
+
+impl AuthConfig {
+    /// URL of the issuer's JSON Web Key Set.
+    pub fn jwks_url(&self) -> String {
+        self.endpoint(self.jwks_url.as_deref(), "jwks.json")
+    }
+
+    /// RFC 8628 device authorization endpoint.
+    pub fn device_authorization_url(&self) -> String {
+        self.endpoint(
+            self.device_authorization_url.as_deref(),
+            "api/oidc/device-authorization",
+        )
+    }
+
+    /// Token endpoint, used for both the device code and refresh grants.
+    pub fn token_url(&self) -> String {
+        self.endpoint(self.token_url.as_deref(), "api/oidc/token")
+    }
+
+    /// Requested scopes in the space-delimited form the token endpoint wants.
+    pub fn scope(&self) -> String {
+        self.scopes.join(" ")
+    }
+
+    fn endpoint(&self, configured: Option<&str>, default_path: &str) -> String {
+        configured
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("{}/{default_path}", self.issuer.trim_end_matches('/')))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,10 +169,6 @@ pub struct ClientConfig {
     pub server_url: String,
 
     pub server_upload_timeout_secs: u64,
-
-    /// Bearer token presented on upload. Must match one of the server's
-    /// `upload_tokens`.
-    pub upload_token: Option<Secret>,
 }
 
 /// Deserialization shim for [`ClientConfig`] that also accepts the legacy
@@ -125,9 +190,6 @@ struct ClientConfigRepr {
 
     #[serde(default = "default_server_upload_timeout_secs")]
     server_upload_timeout_secs: u64,
-
-    #[serde(default)]
-    upload_token: Option<Secret>,
 }
 
 impl From<ClientConfigRepr> for ClientConfig {
@@ -145,7 +207,6 @@ impl From<ClientConfigRepr> for ClientConfig {
             camera_warmup_frames: repr.camera_warmup_frames,
             server_url: repr.server_url,
             server_upload_timeout_secs: repr.server_upload_timeout_secs,
-            upload_token: repr.upload_token,
         }
     }
 }
@@ -179,11 +240,6 @@ pub struct ServerConfig {
     #[serde(default = "default_burned_in_chyron")]
     pub burned_in_chyron: bool,
 
-    /// Accepted bearer tokens for POST /api/upload. Empty disables the check,
-    /// which is only allowed when bound to a loopback address.
-    #[serde(default)]
-    pub upload_tokens: Vec<Secret>,
-
     /// Maximum number of uploads processed concurrently. Further uploads are
     /// shed with 429 while all slots are in use. Bounds the CPU/memory cost of
     /// image decode plus ONNX segmentation. Must be at least 1.
@@ -193,6 +249,25 @@ pub struct ServerConfig {
 
 fn default_font_name() -> String {
     "monospace".to_string()
+}
+
+fn default_auth_issuer() -> String {
+    "https://auth.sw1nn.net".to_owned()
+}
+
+fn default_auth_client_id() -> String {
+    "lolcommits-cli".to_owned()
+}
+
+fn default_auth_required_group() -> String {
+    "lolcommits".to_owned()
+}
+
+fn default_auth_scopes() -> Vec<String> {
+    ["openid", "profile", "groups", "offline_access"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
 }
 
 fn default_background_path() -> String {
@@ -257,7 +332,8 @@ fn default_models_dir() -> String {
 
 fn default_bind_address() -> String {
     // Loopback by default: the daemon is expected to sit behind a reverse proxy.
-    // Binding to a non-loopback address requires configuring upload_tokens.
+    // Uploads are authenticated in the application, so a non-loopback bind is
+    // not itself a risk.
     "127.0.0.1".to_string()
 }
 
@@ -267,6 +343,20 @@ fn default_bind_port() -> u16 {
 
 fn default_max_concurrent_uploads() -> usize {
     4
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            issuer: default_auth_issuer(),
+            client_id: default_auth_client_id(),
+            required_group: default_auth_required_group(),
+            scopes: default_auth_scopes(),
+            jwks_url: None,
+            device_authorization_url: None,
+            token_url: None,
+        }
+    }
 }
 
 impl Default for BurnedInChyronConfig {
@@ -291,7 +381,6 @@ impl Default for ClientConfig {
             camera_warmup_frames: default_camera_warmup_frames(),
             server_url: default_server_url(),
             server_upload_timeout_secs: default_server_upload_timeout_secs(),
-            upload_token: None,
         }
     }
 }
@@ -308,7 +397,6 @@ impl Default for ServerConfig {
             bind_port: default_bind_port(),
             log_output: crate::LogOutput::default(),
             burned_in_chyron: default_burned_in_chyron(),
-            upload_tokens: Vec::new(),
             max_concurrent_uploads: default_max_concurrent_uploads(),
         }
     }
@@ -573,7 +661,6 @@ mod tests {
         let server = ServerConfig::default();
         assert_eq!(server.bind_address, "127.0.0.1");
         assert_eq!(server.bind_port, 3000);
-        assert!(server.upload_tokens.is_empty());
         assert_eq!(server.max_concurrent_uploads, 4);
     }
 

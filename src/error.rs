@@ -41,6 +41,12 @@ pub enum Error {
     #[from]
     SerdeJson(serde_json::Error),
 
+    #[from]
+    Jwt(jsonwebtoken::errors::Error),
+
+    #[from]
+    Keyring(keyring::Error),
+
     NotInGitRepo,
     NoHomeDirectory,
     NoRepoName,
@@ -105,8 +111,47 @@ pub enum Error {
     PathTraversal {
         name: String,
     },
-    ServerBindWithoutAuth {
-        bind_address: String,
+
+    // Access token verification (daemon side).
+    JwksFetch {
+        url: String,
+        source: reqwest::Error,
+    },
+    JwksUnavailable {
+        url: String,
+        status: u16,
+    },
+    /// The token's `kid` is in neither the cached key set nor a fresh fetch.
+    UnknownSigningKey,
+    TokenMissingKeyId,
+    MissingBearerToken,
+    /// Minted for a different OIDC client, so not usable at this service.
+    WrongClientId,
+    MissingRequiredGroup {
+        group: String,
+    },
+
+    // Device authorization grant (CLI side).
+    DeviceAuthorizationFailed {
+        status: u16,
+        body: String,
+    },
+    DeviceCodeExpired,
+    DeviceAuthorizationDenied,
+    TokenRequestFailed {
+        status: u16,
+        body: String,
+    },
+    /// An RFC 6749 error response from the token endpoint.
+    TokenEndpointError {
+        error: String,
+        description: Option<String>,
+    },
+    /// No stored credentials, or the refresh token is no longer accepted.
+    NotLoggedIn,
+    TokenStoreWrite {
+        path: PathBuf,
+        source: std::io::Error,
     },
 
     UnknownCameraFormat {
