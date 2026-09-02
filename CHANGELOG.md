@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v4.0.0 - 2026-09-02
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**auth**) authenticate uploads with Authelia OIDC tokens - (da846dc) - Neale Swinnerton
+- (**server**) limit concurrent uploads and shed with 429 - (9ec0bbf) - Neale Swinnerton
+#### Bug Fixes
+- (**logging**) log the library's events when RUST_LOG is unset - (ef33666) - Neale Swinnerton
+
+- - -
+
 ## v3.0.0 - 2026-08-28
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**server**) authenticate uploads with bearer tokens - (701caee) - Neale Swinnerton
