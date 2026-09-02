@@ -17,6 +17,14 @@ use std::io::IsTerminal;
 
 /// Timestamp format used in commit metadata (both writing and parsing)
 pub const TIMESTAMP_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
+
+/// Filter used when `RUST_LOG` is unset.
+///
+/// Both targets are needed: the binaries log under their own name, but every
+/// module in this crate logs under `sw1nn_lolcommits_rs`. Naming only the
+/// binary silently drops the library's events, upload attribution and rejected
+/// tokens included.
+const DEFAULT_LOG_FILTER: &str = "sw1nn_lolcommits_rs=info,lolcommitsd=info,tower_http=warn";
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Log output destination
@@ -46,7 +54,7 @@ pub enum LogOutput {
 /// Uses journald when running as a service (no terminal), fmt when running interactively.
 pub fn init_tracing_with_output(output: LogOutput) {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "lolcommits=info,tower_http=warn".into());
+        .unwrap_or_else(|_| DEFAULT_LOG_FILTER.into());
 
     let use_stdout = match output {
         LogOutput::Auto => std::io::stdout().is_terminal(),
