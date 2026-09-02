@@ -176,6 +176,9 @@ pub struct ClientConfig {
     pub server_url: String,
 
     pub server_upload_timeout_secs: u64,
+
+    /// Show a desktop notification when an upload completes.
+    pub desktop_notifications: bool,
 }
 
 /// Deserialization shim for [`ClientConfig`] that also accepts the legacy
@@ -197,6 +200,9 @@ struct ClientConfigRepr {
 
     #[serde(default = "default_server_upload_timeout_secs")]
     server_upload_timeout_secs: u64,
+
+    #[serde(default = "default_desktop_notifications")]
+    desktop_notifications: bool,
 }
 
 impl From<ClientConfigRepr> for ClientConfig {
@@ -214,6 +220,7 @@ impl From<ClientConfigRepr> for ClientConfig {
             camera_warmup_frames: repr.camera_warmup_frames,
             server_url: repr.server_url,
             server_upload_timeout_secs: repr.server_upload_timeout_secs,
+            desktop_notifications: repr.desktop_notifications,
         }
     }
 }
@@ -346,6 +353,10 @@ fn default_server_upload_timeout_secs() -> u64 {
     30
 }
 
+fn default_desktop_notifications() -> bool {
+    true
+}
+
 fn default_images_dir() -> String {
     "/var/lib/lolcommits/images".to_string()
 }
@@ -409,6 +420,7 @@ impl Default for ClientConfig {
             camera_warmup_frames: default_camera_warmup_frames(),
             server_url: default_server_url(),
             server_upload_timeout_secs: default_server_upload_timeout_secs(),
+            desktop_notifications: default_desktop_notifications(),
         }
     }
 }
@@ -568,6 +580,36 @@ mod tests {
         assert_eq!(client.camera_devices.len(), 1);
         assert_eq!(client.camera_devices[0].device, "0");
         assert_eq!(client.camera_warmup_frames, 3);
+        assert!(client.desktop_notifications);
+    }
+
+    #[test]
+    fn test_desktop_notifications_default_on_when_key_absent() -> Result<()> {
+        let client: ClientConfig = toml::from_str(r#"server_url = "http://example.com""#)?;
+
+        assert!(client.desktop_notifications);
+        Ok(())
+    }
+
+    #[test]
+    fn test_desktop_notifications_can_be_turned_off() -> Result<()> {
+        let client: ClientConfig = toml::from_str("desktop_notifications = false")?;
+
+        assert!(!client.desktop_notifications);
+        Ok(())
+    }
+
+    #[test]
+    fn test_desktop_notifications_round_trip_through_toml() -> Result<()> {
+        let client = ClientConfig {
+            desktop_notifications: false,
+            ..Default::default()
+        };
+
+        let round_tripped: ClientConfig = toml::from_str(&toml::to_string(&client)?)?;
+
+        assert!(!round_tripped.desktop_notifications);
+        Ok(())
     }
 
     #[test]

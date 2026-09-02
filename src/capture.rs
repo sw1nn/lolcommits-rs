@@ -14,7 +14,8 @@
 //! - **Upload error** (camera capture succeeds, connection succeeds, but server returns 4xx/5xx):
 //!   Log the error and exit with error.
 //! - **Upload success** (camera capture succeeds, server returns 2xx): Log the response body at
-//!   INFO level.
+//!   INFO level and show a desktop notification, unless `desktop_notifications` is off. A
+//!   notification that cannot be shown is logged and ignored: the upload already succeeded.
 //! - **Not logged in** (no stored credentials, or the issuer refuses the refresh): Exit with
 //!   error, telling the user to run `lolcommits-ctl login`. A failed refresh that was not a
 //!   refusal — a network or DNS failure — is reported as itself instead.
@@ -23,7 +24,7 @@ use crate::{
     camera,
     config::{self, AuthConfig},
     error::{Error, Result},
-    git, oidc,
+    git, notify, oidc,
     oidc::TokenSet,
     secret::Secret,
     token_store,
@@ -102,7 +103,7 @@ pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()
         commit_type,
         scope,
         timestamp,
-        repo_name,
+        repo_name: repo_name.clone(),
         branch_name,
         files_changed: stats.files_changed,
         insertions: stats.insertions,
@@ -119,6 +120,15 @@ pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()
 
     // Upload to server
     upload_to_server(&client_config, &auth_config, png_bytes, metadata)?;
+
+    notify::upload_succeeded(
+        &client_config,
+        &notify::Upload {
+            repo_name: &repo_name,
+            revision: &revision,
+            message: &message,
+        },
+    );
 
     Ok(())
 }

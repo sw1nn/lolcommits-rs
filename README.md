@@ -119,6 +119,9 @@ camera_device = "0"
 # (allows the camera to adjust white balance and exposure)
 camera_warmup_frames = 3
 
+# Show a desktop notification when an upload completes
+desktop_notifications = true
+
 # Opacity of the information overlay (0.0 = transparent, 1.0 = opaque)
 chyron_opacity = 0.75
 
@@ -152,6 +155,17 @@ If a specific font is not set, it falls back to `default_font_name`. This allows
   - A device path (e.g., "/dev/video0" on Linux)
   - A device name or URL for network cameras
 - **camera_warmup_frames**: Number of frames to capture and discard before taking the final snapshot. This gives the camera time to adjust exposure and white balance, resulting in better image quality.
+
+### Notifications
+
+- **desktop_notifications**: When enabled (the default), a successful upload
+  raises a freedesktop.org desktop notification giving the repository,
+  abbreviated commit SHA and commit subject. This matters most in a git hook,
+  where `lolcommits-ctl` is otherwise silent on success. Set it to `false` under
+  `[client]` to turn notifications off.
+
+  Notifications are best-effort: on a machine with no notification daemon the
+  failure is logged and ignored, and the upload still reports success.
 
 ### Visual Customization
 
