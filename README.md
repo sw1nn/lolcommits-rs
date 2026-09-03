@@ -90,6 +90,14 @@ lolcommits-ctl completions zsh > ~/.zsh/completions/_lolcommits-ctl
 
 Configuration is stored in `~/.config/lolcommits/config.toml`. The tool will automatically create a default configuration file on first run if none exists.
 
+> [!IMPORTANT]
+> Configuration is parsed strictly. An unknown or misspelled key is a startup
+> error, not a silently ignored line, so a typo cannot leave you running a
+> default you did not intend. The error names the offending key.
+>
+> A copy of `assets/config.toml.sample` is a valid starting point: every
+> uncommented value in it is the built-in default.
+
 ### Configuration Options
 
 Below are all available configuration options with their default values:

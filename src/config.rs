@@ -18,6 +18,7 @@ pub const STATIC_ROOT_ENV: &str = "LOLCOMMITS_STATIC_ROOT";
 
 /// Configuration for a single camera device.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CameraDeviceConfig {
     /// Device path or index (e.g., "/dev/video0", "0", "/dev/video-ugreen")
     pub device: String,
@@ -56,6 +57,7 @@ impl CameraDeviceConfig {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client: Option<ClientConfig>,
@@ -75,6 +77,7 @@ pub struct Config {
 ///
 /// The client is public (no client secret), so nothing here is sensitive.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthConfig {
     /// Token issuer. Must match the `iss` claim exactly, and is the base the
     /// endpoint URLs below are derived from when they are not set explicitly.
@@ -138,6 +141,7 @@ impl AuthConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BurnedInChyronConfig {
     #[serde(default = "default_font_name")]
     pub default_font_name: String,
@@ -185,6 +189,7 @@ pub struct ClientConfig {
 /// singular `camera_device = "..."` key (documented in older configs) and
 /// maps it to a single-element `camera_devices`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ClientConfigRepr {
     #[serde(default)]
     camera_devices: Option<Vec<CameraDeviceConfig>>,
@@ -226,6 +231,7 @@ impl From<ClientConfigRepr> for ClientConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ServerConfig {
     #[serde(default = "default_background_path")]
     pub background_path: String,
@@ -881,5 +887,101 @@ mod tests {
         temp_env::with_var(STATIC_ROOT_ENV, Some(""), || {
             assert_eq!(config.static_root(), PathBuf::from("/srv/gallery"));
         });
+    }
+
+    #[test]
+    fn unknown_top_level_section_is_rejected() {
+        let toml_str = r#"
+            [nonsense]
+            key = 1
+        "#;
+
+        let result: std::result::Result<Config, _> = toml::from_str(toml_str);
+        let error = result.expect_err("an unknown section must not be ignored");
+        assert!(
+            error.to_string().contains("nonsense"),
+            "error should name the offending section, got: {error}"
+        );
+    }
+
+    #[test]
+    fn unknown_client_key_is_rejected() {
+        // The legacy `camera_device` key still parses, so the shim must not be
+        // mistaken for a catch-all.
+        let toml_str = r#"
+            [client]
+            camera_devcie = "0"
+        "#;
+
+        let result: std::result::Result<Config, _> = toml::from_str(toml_str);
+        let error = result.expect_err("a misspelled client key must not be ignored");
+        assert!(
+            error.to_string().contains("camera_devcie"),
+            "error should name the offending key, got: {error}"
+        );
+    }
+
+    #[test]
+    fn unknown_server_key_is_rejected() {
+        let toml_str = r#"
+            [server]
+            bind_prot = 8080
+        "#;
+
+        let result: std::result::Result<Config, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "a misspelled server key must not be ignored"
+        );
+    }
+
+    #[test]
+    fn unknown_auth_key_is_rejected() {
+        let toml_str = r#"
+            [auth]
+            requred_group = "lolcommits"
+        "#;
+
+        let result: std::result::Result<Config, _> = toml::from_str(toml_str);
+        assert!(result.is_err(), "a misspelled auth key must not be ignored");
+    }
+
+    #[test]
+    fn unknown_chyron_key_is_rejected() {
+        let toml_str = r#"
+            [burned_in_chyron]
+            chyron_opacty = 0.5
+        "#;
+
+        let result: std::result::Result<Config, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "a misspelled chyron key must not be ignored"
+        );
+    }
+
+    #[test]
+    fn unknown_camera_device_key_is_rejected() {
+        let toml_str = r#"
+            [[client.camera_devices]]
+            device = "0"
+            fromat = "MJPEG"
+        "#;
+
+        let result: std::result::Result<Config, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "a misspelled camera device key must not be ignored"
+        );
+    }
+
+    #[test]
+    fn legacy_camera_device_key_still_parses_under_deny_unknown_fields() -> Result<()> {
+        let config: Config = toml::from_str("[client]\ncamera_device = \"/dev/video7\"\n")?;
+        let devices = config.client.map(|c| c.camera_devices).unwrap_or_default();
+
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].device, "/dev/video7");
+        Ok(())
     }
 }
