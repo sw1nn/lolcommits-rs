@@ -1,58 +1,161 @@
 # lolcommits configuration file
 #
-# Place this file at: ~/.config/lolcommits/config.toml
-# (or $XDG_CONFIG_HOME/lolcommits/config.toml)
-
-# Font names for different text elements (resolved via fontconfig)
-# All default to "monospace" which uses the system monospace font
-# Common font names: "DejaVu Sans", "Liberation Sans", "Arial", "Courier New"
-# If a font is not found, falls back to monospace
-
-# Font for the commit message (top line)
-message_font_name = "monospace"
-
-# Font for the info line (commit type, scope, repo name)
-info_font_name = "monospace"
-
-# Font for the SHA (top right)
-sha_font_name = "monospace"
-
-# Font for git stats (+N -N on bottom right)
-stats_font_name = "monospace"
-
-# Path to the background image
-# This image will be composited behind the segmented person
+# Default location: $XDG_CONFIG_HOME/lolcommits/config.toml
+#                   (usually ~/.config/lolcommits/config.toml)
+# Override with:    lolcommits-ctl --config FILE ... / lolcommitsd --config FILE
 #
-# If the path starts with '/', it's treated as an absolute path.
-# Otherwise, it's treated as a basename and will search for {basename}.png in:
-#   - XDG_DATA_HOME (typically ~/.local/share)
-#   - XDG_DATA_DIRS (typically /usr/local/share:/usr/share)
-# Searching in subdirectories: backgrounds/, pixmaps/, wallpapers/, or the root
+# All four sections are optional, and every key in them is optional. The values
+# shown below are the built-in defaults, so a copy of this file changes nothing.
+# Delete what you do not need.
 #
-# Examples:
-#   background_path = "/home/user/.local/share/backgrounds/my-bg.png"  (absolute path)
-#   background_path = "GoogleMeetBackground"                           (searches for GoogleMeetBackground.png)
-background_path = "GoogleMeetBackground"
+#   [client]            read by lolcommits-ctl (capture and upload)
+#   [auth]              read by both: lolcommits-ctl logs in, lolcommitsd verifies
+#   [server]            read by lolcommitsd (the gallery daemon)
+#   [burned_in_chyron]  read by lolcommitsd, when server.burned_in_chyron is true
 
-# Camera device (0 is usually the default webcam)
-# Can be a numeric index (e.g., "0", "1", "2") or a device path (e.g., "/dev/video0")
-# For network cameras, use the camera URL/name as a string
-camera_device = "0"
+# ---------------------------------------------------------------------------
+# Client: capture and upload
+# ---------------------------------------------------------------------------
+[client]
 
-# Number of warmup frames to capture before taking the final photo
-# This helps the camera adjust exposure and white balance
+# Number of frames captured and discarded before the real photo, so the camera
+# has time to settle its exposure and white balance.
 camera_warmup_frames = 3
 
-# Opacity of the chyron overlay (0.0 = fully transparent, 1.0 = fully opaque)
-# Range: 0.0 to 1.0
+# Base URL of the lolcommits daemon.
+server_url = "http://127.0.0.1:3000"
+
+# How long to wait for the upload to complete before giving up.
+server_upload_timeout_secs = 30
+
+# Show a desktop notification after a successful upload. Uploads normally run
+# from a git post-commit hook with logging off, so without this a success is
+# silent. Best effort: a machine with no notification daemon still exits 0.
+desktop_notifications = true
+
+# Cameras are tried in order, and the first one that works is used. Each entry
+# needs a `device`; the remaining keys are auto-detected when left out.
+#
+#   device  device path or index, e.g. "0", "/dev/video0", "/dev/video-ugreen"
+#   format  "YUYV", "MJPEG", "NV12" or "GRAY"
+#   width   capture width in pixels
+#   height  capture height in pixels
+#   fps     frame rate
+[[client.camera_devices]]
+device = "0"
+
+# A second camera, used only if the first cannot be opened:
+#
+# [[client.camera_devices]]
+# device = "/dev/video2"
+# format = "MJPEG"
+# width = 1280
+# height = 720
+# fps = 30
+
+# ---------------------------------------------------------------------------
+# Auth: OpenID Connect
+# ---------------------------------------------------------------------------
+# Uploads are authenticated. `lolcommits-ctl login` obtains a token through the
+# device authorization grant; the daemon verifies it. The client is public, so
+# nothing in this section is a secret.
+[auth]
+
+# Token issuer. Must match the `iss` claim exactly. The endpoint URLs below are
+# derived from this unless you set them explicitly.
+issuer = "https://auth.sw1nn.net"
+
+# This service's own OIDC client id. A token minted for any other client is
+# rejected: Authelia's device grant leaves `aud` empty, so `client_id` is what
+# stops a token for another service being replayed here.
+client_id = "lolcommits-cli"
+
+# Group the caller must hold in the `groups` claim to upload. Daemon only.
+required_group = "lolcommits"
+
+# Scopes requested at login. Not an authorization boundary - a public client can
+# ask for anything - so the daemon gates on `required_group` instead.
+scopes = ["openid", "profile", "groups", "offline_access"]
+
+# Endpoint overrides. Set these only for an issuer whose paths differ from
+# Authelia's defaults.
+#
+# jwks_url = "https://auth.sw1nn.net/jwks.json"
+# device_authorization_url = "https://auth.sw1nn.net/api/oidc/device-authorization"
+# token_url = "https://auth.sw1nn.net/api/oidc/token"
+
+# ---------------------------------------------------------------------------
+# Server: the gallery daemon
+# ---------------------------------------------------------------------------
+[server]
+
+# Loopback by default: the daemon expects to sit behind a reverse proxy.
+bind_address = "127.0.0.1"
+bind_port = 3000
+
+# Where uploaded images are written, and where the ONNX segmentation model is
+# kept. Both must be writable by the daemon's user.
+images_dir = "/var/lib/lolcommits/images"
+models_dir = "/var/lib/lolcommits/models"
+
+# Directory holding the gallery's index.html and its /static/ assets.
+# The LOLCOMMITS_STATIC_ROOT environment variable overrides this, so a
+# development run can serve the in-tree assets without editing the config.
+static_dir = "/usr/share/lolcommits/static"
+
+# Heading shown on the gallery page.
+gallery_title = "Lolcommits Gallery"
+
+# Composite the segmented person onto a background image, and draw the chyron
+# into the stored image. Turn this off to keep the frame as captured.
+burned_in_chyron = true
+
+# Translate the image so the detected person sits in the middle of the frame.
+center_person = true
+
+# Background image composited behind the segmented person.
+#
+# A value starting with "/" is used as an absolute path. Anything else is a
+# basename: the daemon looks for {basename}.png under XDG_DATA_HOME and each
+# XDG_DATA_DIRS entry, checking the directory itself and its backgrounds/,
+# pixmaps/ and wallpapers/ subdirectories.
+#
+# Defaults to $XDG_DATA_HOME/lolcommits/background.png, falling back to
+# /var/lib/lolcommits/background.png when the daemon has no HOME.
+#
+# background_path = "GoogleMeetBackground"
+# background_path = "/var/lib/lolcommits/background.png"
+
+# Uploads processed at the same time. Further uploads are shed with 429 while
+# every slot is busy, which bounds the cost of image decode plus segmentation.
+# Must be at least 1.
+max_concurrent_uploads = 4
+
+# Where the daemon logs: "auto" picks journald when there is no terminal,
+# "stdout" and "journald" force one. The --log-output flag overrides this.
+log_output = "auto"
+
+# ---------------------------------------------------------------------------
+# Chyron: the text burned into the image
+# ---------------------------------------------------------------------------
+# Applies when server.burned_in_chyron is true.
+[burned_in_chyron]
+
+# Font used for any element with no font of its own. Resolved through
+# fontconfig, so a family name such as "DejaVu Sans" or "Liberation Mono"
+# works. An unresolvable name falls back to monospace.
+default_font_name = "monospace"
+
+# Per-element fonts. Each defaults to default_font_name.
+#
+# message_font_name = "DejaVu Sans"   # commit message, top line
+# info_font_name = "DejaVu Sans"      # commit type, scope and repository name
+# sha_font_name = "DejaVu Sans Mono"  # abbreviated SHA, top right
+# stats_font_name = "DejaVu Sans Mono"  # +N -N, bottom right
+
+# Opacity of the chyron band, from 0.0 (invisible) to 1.0 (solid).
 chyron_opacity = 0.75
 
-# Font size for the title line in the chyron (commit message)
+# Point sizes for the two lines of text.
 title_font_size = 28.0
-
-# Font size for the info line in the chyron (commit type, scope, repo name)
 info_font_size = 18.0
-
-# Whether to center the person in the frame using mask center-of-mass
-# If true, the image will be translated to center the detected person
-center_person = true
