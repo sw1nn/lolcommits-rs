@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v5.0.0 - 2026-09-03
+#### Features
+- (**notify**) show a desktop notification when an upload completes - (7a4a510) - Neale Swinnerton
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**server**) serve /static/ from disk instead of the binary - (d6b9ee0) - Neale Swinnerton
+
+- - -
+
 ## v4.1.0 - 2026-09-03
 #### Features
 - (**site**) replace the purple gradient with a photo background - (247e891) - Neale Swinnerton
