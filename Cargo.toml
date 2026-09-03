@@ -30,7 +30,12 @@ xdg = "3.0"
 fontconfig = "0.11"
 axum = { version = "0.8", features = ["multipart"] }
 tokio = { version = "1.53", features = ["full"] }
-tower-http = { version = "0.7", features = ["fs", "sensitive-headers", "trace"] }
+tower-http = { version = "0.7", features = [
+  "fs",
+  "sensitive-headers",
+  "set-header",
+  "trace",
+] }
 serde_json = "1.0"
 png = "0.18"
 tempfile = "3.27"
@@ -47,3 +52,4 @@ keyring = "4.2"
 base64 = "0.22"
 temp-env = "0.3"
 test-case = "3.3"
+tower = { version = "0.5", features = ["util"] }

@@ -9,6 +9,13 @@ const XDG_PREFIX: &str = "lolcommits";
 /// Default configuration file name within the config directory.
 const CONFIG_FILE_NAME: &str = "config.toml";
 
+/// Where the packaged gallery assets are installed.
+pub const DEFAULT_STATIC_DIR: &str = "/usr/share/lolcommits/static";
+
+/// Overrides `server.static_dir`, so a development run can serve the in-tree
+/// assets without editing the installed config.
+pub const STATIC_ROOT_ENV: &str = "LOLCOMMITS_STATIC_ROOT";
+
 /// Configuration for a single camera device.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CameraDeviceConfig {
@@ -228,6 +235,10 @@ pub struct ServerConfig {
     #[serde(default = "default_models_dir")]
     pub models_dir: String,
 
+    /// Directory holding the gallery's `index.html` and its `/static/` assets.
+    #[serde(default = "default_static_dir")]
+    pub static_dir: String,
+
     #[serde(default = "default_bind_address")]
     pub bind_address: String,
 
@@ -245,6 +256,19 @@ pub struct ServerConfig {
     /// image decode plus ONNX segmentation. Must be at least 1.
     #[serde(default = "default_max_concurrent_uploads")]
     pub max_concurrent_uploads: usize,
+}
+
+impl ServerConfig {
+    /// Directory the gallery's static assets are read from.
+    ///
+    /// `LOLCOMMITS_STATIC_ROOT` wins over `static_dir`; an empty value counts
+    /// as unset, so exporting it blank does not silently break the gallery.
+    pub fn static_root(&self) -> PathBuf {
+        std::env::var_os(STATIC_ROOT_ENV)
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(&self.static_dir))
+    }
 }
 
 fn default_font_name() -> String {
@@ -330,6 +354,10 @@ fn default_models_dir() -> String {
     "/var/lib/lolcommits/models".to_string()
 }
 
+fn default_static_dir() -> String {
+    DEFAULT_STATIC_DIR.to_owned()
+}
+
 fn default_bind_address() -> String {
     // Loopback by default: the daemon is expected to sit behind a reverse proxy.
     // Uploads are authenticated in the application, so a non-loopback bind is
@@ -393,6 +421,7 @@ impl Default for ServerConfig {
             gallery_title: default_gallery_title(),
             images_dir: default_images_dir(),
             models_dir: default_models_dir(),
+            static_dir: default_static_dir(),
             bind_address: default_bind_address(),
             bind_port: default_bind_port(),
             log_output: crate::LogOutput::default(),
@@ -761,5 +790,54 @@ mod tests {
         assert_eq!(devices.len(), 1);
         assert_eq!(devices[0].device, "/dev/video9");
         Ok(())
+    }
+
+    #[test]
+    fn static_root_defaults_to_system_share() {
+        let config = ServerConfig::default();
+
+        // The development shell exports this, so it has to be cleared here.
+        temp_env::with_var_unset(STATIC_ROOT_ENV, || {
+            assert_eq!(config.static_root(), PathBuf::from(DEFAULT_STATIC_DIR));
+        });
+    }
+
+    #[test]
+    fn static_root_uses_configured_dir() {
+        let config = ServerConfig {
+            static_dir: "/srv/gallery".to_owned(),
+            ..Default::default()
+        };
+
+        temp_env::with_var_unset(STATIC_ROOT_ENV, || {
+            assert_eq!(config.static_root(), PathBuf::from("/srv/gallery"));
+        });
+    }
+
+    #[test]
+    fn static_root_env_var_overrides_configured_dir() {
+        let config = ServerConfig {
+            static_dir: "/srv/gallery".to_owned(),
+            ..Default::default()
+        };
+
+        temp_env::with_var(STATIC_ROOT_ENV, Some("/home/dev/assets/static"), || {
+            assert_eq!(
+                config.static_root(),
+                PathBuf::from("/home/dev/assets/static")
+            );
+        });
+    }
+
+    #[test]
+    fn static_root_ignores_empty_env_var() {
+        let config = ServerConfig {
+            static_dir: "/srv/gallery".to_owned(),
+            ..Default::default()
+        };
+
+        temp_env::with_var(STATIC_ROOT_ENV, Some(""), || {
+            assert_eq!(config.static_root(), PathBuf::from("/srv/gallery"));
+        });
     }
 }

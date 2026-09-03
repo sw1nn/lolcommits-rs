@@ -68,6 +68,12 @@
             fontconfig.dev
           ];
 
+          # The daemon reads its gallery assets from disk, defaulting to the
+          # packaged /usr/share location. Point a development run at the tree.
+          shellHook = ''
+            export LOLCOMMITS_STATIC_ROOT="''${LOLCOMMITS_STATIC_ROOT:-$PWD/assets/static}"
+          '';
+
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           LLVM_COV = "${pkgs.llvmPackages.llvm}/bin/llvm-cov";
           LLVM_PROFDATA = "${pkgs.llvmPackages.llvm}/bin/llvm-profdata";

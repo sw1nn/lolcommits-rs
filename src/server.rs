@@ -1,9 +1,9 @@
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Multipart, State},
-    http::{StatusCode, header},
+    http::{HeaderValue, StatusCode, header},
     response::{
-        Html, IntoResponse, Response,
+        IntoResponse, Response,
         sse::{Event, Sse},
     },
     routing::{get, post},
@@ -12,12 +12,13 @@ use futures::stream::Stream;
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashSet;
 use std::convert::Infallible;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore, broadcast};
 use tower_http::{
     sensitive_headers::SetSensitiveRequestHeadersLayer,
-    services::ServeDir,
+    services::{ServeDir, ServeFile},
+    set_header::SetResponseHeaderLayer,
     trace::{DefaultMakeSpan, TraceLayer},
 };
 
@@ -27,6 +28,10 @@ use crate::{
     error::{Error, Result},
     git, image_metadata, image_processor,
 };
+
+/// Cache lifetime for `/static` assets: one year, the RFC 9111 practical
+/// maximum.
+const STATIC_CACHE_CONTROL: &str = "public, max-age=31536000";
 
 struct SseConnectionGuard;
 
@@ -117,6 +122,7 @@ impl axum::extract::FromRef<AppState> for Arc<Authenticator> {
 
 pub fn create_router(
     data_home: std::path::PathBuf,
+    static_root: std::path::PathBuf,
     metrics_handle: metrics_exporter_prometheus::PrometheusHandle,
     authenticator: Arc<Authenticator>,
     max_concurrent_uploads: usize,
@@ -155,8 +161,7 @@ pub fn create_router(
     };
 
     let app_routes = Router::new()
-        .route("/", get(index_handler))
-        .route("/static/background.webp", get(background_handler))
+        .merge(static_router(&static_root))
         .route("/api/images", get(list_images))
         .route("/api/config", get(get_config))
         .route("/api/upload", post(upload_handler))
@@ -187,19 +192,29 @@ pub fn create_router(
     app_routes.merge(metrics_routes)
 }
 
-async fn index_handler() -> Html<&'static str> {
-    Html(include_str!("static/index.html"))
-}
+/// Serves the gallery page and its assets from `static_root` on disk.
+///
+/// `/static` keeps the year-long cache lifetime the embedded background image
+/// had. Filenames are not versioned, so a changed asset only reaches browsers
+/// that already hold one if it is given a new name. `index.html` is left
+/// uncached, which is what lets such a rename take effect.
+fn static_router<P, S>(static_root: P) -> Router<S>
+where
+    P: AsRef<Path>,
+    S: Clone + Send + Sync + 'static,
+{
+    let static_root = static_root.as_ref();
 
-async fn background_handler() -> Response {
-    (
-        [
-            (header::CONTENT_TYPE, "image/webp"),
-            (header::CACHE_CONTROL, "public, max-age=31536000"),
-        ],
-        include_bytes!("static/background.webp").as_slice(),
-    )
-        .into_response()
+    let assets = Router::new()
+        .fallback_service(ServeDir::new(static_root))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static(STATIC_CACHE_CONTROL),
+        ));
+
+    Router::new()
+        .route_service("/", ServeFile::new(static_root.join("index.html")))
+        .nest_service("/static", assets)
 }
 
 async fn list_images() -> Response {
@@ -704,6 +719,90 @@ mod tests {
             "slot should be reusable after the permit is dropped"
         );
 
+        Ok(())
+    }
+
+    async fn fetch(router: Router, uri: &str) -> Response {
+        use tower::ServiceExt;
+
+        router
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(uri)
+                    .body(axum::body::Body::empty())
+                    .expect("request builds"),
+            )
+            .await
+            .expect("router is infallible")
+    }
+
+    fn static_root_fixture() -> Result<tempfile::TempDir> {
+        let dir = tempfile::tempdir()?;
+        std::fs::write(dir.path().join("index.html"), "<h1>gallery</h1>")?;
+        std::fs::write(dir.path().join("background.webp"), b"webp-bytes")?;
+        Ok(dir)
+    }
+
+    async fn body_string(response: Response) -> Result<String> {
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body collects");
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    #[tokio::test]
+    async fn index_is_served_from_the_static_root() -> Result<()> {
+        let dir = static_root_fixture()?;
+
+        let response = fetch(static_router(dir.path()), "/").await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_string(response).await?, "<h1>gallery</h1>");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn assets_are_served_from_the_static_root() -> Result<()> {
+        let dir = static_root_fixture()?;
+
+        let response = fetch(static_router(dir.path()), "/static/background.webp").await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_string(response).await?, "webp-bytes");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn assets_are_cached_long_term() -> Result<()> {
+        let dir = static_root_fixture()?;
+
+        let response = fetch(static_router(dir.path()), "/static/background.webp").await;
+
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL),
+            Some(&axum::http::HeaderValue::from_static(STATIC_CACHE_CONTROL))
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_missing_asset_is_not_found() -> Result<()> {
+        let dir = static_root_fixture()?;
+
+        let response = fetch(static_router(dir.path()), "/static/nope.webp").await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_absent_static_root_is_not_found_rather_than_fatal() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let missing = dir.path().join("not-installed");
+
+        let response = fetch(static_router(&missing), "/").await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
         Ok(())
     }
 }

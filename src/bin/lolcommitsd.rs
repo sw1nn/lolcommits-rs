@@ -33,6 +33,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let images_dir = PathBuf::from(&server_cfg.images_dir);
 
+    let static_root = server_cfg.static_root();
+    if static_root.is_dir() {
+        tracing::info!(static_root = %static_root.display(), "Serving gallery assets");
+    } else {
+        tracing::warn!(
+            static_root = %static_root.display(),
+            "Gallery asset directory not found; the gallery will return 404 until it is installed"
+        );
+    }
+
     let auth_cfg = cfg.auth.clone().unwrap_or_default();
     tracing::info!(
         issuer = %auth_cfg.issuer,
@@ -44,6 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = server::create_router(
         images_dir,
+        static_root,
         metrics_handle,
         authenticator,
         server_cfg.max_concurrent_uploads,

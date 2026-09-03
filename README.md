@@ -211,6 +211,29 @@ bind_port = 3000
 > gallery is unauthenticated by design either way, so still keep the daemon
 > behind a proxy you control.
 
+### Static assets
+
+The gallery page and everything it serves under `/static/` are read from disk
+at request time, not compiled into the binary. The `lolcommits-server` package
+installs them to `/usr/share/lolcommits/static`, which is the default.
+
+```toml
+[server]
+static_dir = "/usr/share/lolcommits/static"
+```
+
+`LOLCOMMITS_STATIC_ROOT` overrides `static_dir`, so a development run can serve
+the in-tree copy without touching the installed config:
+
+```sh
+LOLCOMMITS_STATIC_ROOT=assets/static cargo run --bin lolcommitsd
+```
+
+> [!NOTE]
+> The daemon starts even when the directory is missing, logging a warning and
+> serving `404` for the gallery. The API endpoints are unaffected. Check the
+> startup log after an upgrade if the gallery goes blank.
+
 ### Upload authentication
 
 `POST /api/upload` requires an OpenID Connect access token issued to the
