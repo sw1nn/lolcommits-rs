@@ -1,7 +1,7 @@
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Multipart, State},
-    http::StatusCode,
+    http::{StatusCode, header},
     response::{
         Html, IntoResponse, Response,
         sse::{Event, Sse},
@@ -156,6 +156,7 @@ pub fn create_router(
 
     let app_routes = Router::new()
         .route("/", get(index_handler))
+        .route("/static/background.webp", get(background_handler))
         .route("/api/images", get(list_images))
         .route("/api/config", get(get_config))
         .route("/api/upload", post(upload_handler))
@@ -188,6 +189,17 @@ pub fn create_router(
 
 async fn index_handler() -> Html<&'static str> {
     Html(include_str!("static/index.html"))
+}
+
+async fn background_handler() -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, "image/webp"),
+            (header::CACHE_CONTROL, "public, max-age=31536000"),
+        ],
+        include_bytes!("static/background.webp").as_slice(),
+    )
+        .into_response()
 }
 
 async fn list_images() -> Response {
