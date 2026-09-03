@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v4.1.0 - 2026-09-03
+#### Features
+- (**site**) replace the purple gradient with a photo background - (247e891) - Neale Swinnerton
+
+- - -
+
 ## v4.0.0 - 2026-09-02
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**auth**) authenticate uploads with Authelia OIDC tokens - (da846dc) - Neale Swinnerton
