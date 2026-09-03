@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v5.0.1 - 2026-09-03
+#### Bug Fixes
+- (**packaging**) sw1nn-makepkg-root / upload was being called twice. - (2cad481) - Neale Swinnerton
+
+- - -
+
 ## v5.0.0 - 2026-09-03
 #### Features
 - (**notify**) show a desktop notification when an upload completes - (7a4a510) - Neale Swinnerton
