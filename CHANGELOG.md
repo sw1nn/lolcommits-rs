@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v6.0.0 - 2026-09-04
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**config**) reject unknown keys and test the sample against the schema - (5c01cc5) - Neale Swinnerton
+#### Bug Fixes
+- (**camera**) skip absent camera devices with a warning - (e8e9625) - Neale Swinnerton
+#### Documentation
+- (**config**) regenerate config.toml.sample from the current schema - (07aab5c) - Neale Swinnerton
+- (**packaging**) note that packaging lives in the Justfile package recipe - (a85dbd0) - Neale Swinnerton
+
+- - -
+
 ## v5.0.1 - 2026-09-03
 #### Bug Fixes
 - (**packaging**) sw1nn-makepkg-root / upload was being called twice. - (2cad481) - Neale Swinnerton
