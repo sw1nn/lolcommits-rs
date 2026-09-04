@@ -91,6 +91,16 @@ pub enum Error {
     CameraInvalidDevicePath {
         path: PathBuf,
     },
+    /// The configured device path does not exist, so the device cannot be a
+    /// camera on this machine. Other configured devices are still tried.
+    CameraDeviceNotFound {
+        path: PathBuf,
+    },
+    /// Every configured device was missing or unusable as a path, so there was
+    /// nothing to capture from.
+    NoCameraDeviceAvailable {
+        devices: Vec<String>,
+    },
     CameraBusy {
         device: String,
     },

@@ -27,6 +27,13 @@ fn parse_camera_device(device: &str) -> Result<CameraIndex> {
     if device.starts_with('/') {
         let path = Path::new(device);
 
+        // `exists` follows symlinks, so a dangling symlink counts as missing.
+        if !path.exists() {
+            return Err(Error::CameraDeviceNotFound {
+                path: path.to_path_buf(),
+            });
+        }
+
         let resolved_path = if path.is_symlink() {
             tracing::debug!(symlink = device, "Resolving symlink");
             std::fs::read_link(path).map_err(|source| Error::CameraSymlinkResolution {
@@ -224,6 +231,19 @@ fn try_capture_from_device(device_config: &CameraDeviceConfig) -> Result<Dynamic
     Ok(DynamicImage::ImageRgb8(decoded))
 }
 
+/// A device that is absent or cannot name a camera is a configuration entry for
+/// another machine, not a failure: the next device is tried instead. A device
+/// that is present but cannot be opened (permissions, busy, no usable format)
+/// is a real failure and is reported.
+fn is_device_absent(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::CameraDeviceNotFound { .. }
+            | Error::CameraInvalidDevicePath { .. }
+            | Error::CameraSymlinkResolution { .. }
+    )
+}
+
 /// Capture an image from a camera.
 ///
 /// Tries each camera device in order from config until one successfully captures.
@@ -242,6 +262,9 @@ pub fn capture_image(config: &ClientConfig) -> Result<DynamicImage> {
                 );
                 return Ok(image);
             }
+            Err(e) if is_device_absent(&e) => {
+                tracing::warn!(device = device_config.device, error = %e, "Camera device not available, trying next");
+            }
             Err(e) => {
                 tracing::debug!(device = device_config.device, error = %e, "Camera failed, trying next");
                 last_error = Some(e);
@@ -249,6 +272,74 @@ pub fn capture_image(config: &ClientConfig) -> Result<DynamicImage> {
         }
     }
 
-    // All cameras failed, return the last error
-    Err(last_error.unwrap_or_else(|| std::io::Error::other("No camera devices configured").into()))
+    // A device that was present but failed outranks the absent ones.
+    Err(
+        last_error.unwrap_or_else(|| Error::NoCameraDeviceAvailable {
+            devices: devices.iter().map(|d| d.device.clone()).collect(),
+        }),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn numeric_device_is_an_index() -> TestResult {
+        assert!(matches!(parse_camera_device("2")?, CameraIndex::Index(2)));
+        Ok(())
+    }
+
+    #[test]
+    fn non_path_device_is_a_string() -> TestResult {
+        assert!(matches!(
+            parse_camera_device("http://camera.local/stream")?,
+            CameraIndex::String(_)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn missing_device_path_reports_not_found() {
+        let error = parse_camera_device("/dev/video-does-not-exist")
+            .expect_err("missing device must not parse");
+        assert!(matches!(error, Error::CameraDeviceNotFound { .. }));
+        assert!(is_device_absent(&error));
+    }
+
+    #[test]
+    fn existing_path_that_cannot_name_a_camera_is_invalid() {
+        let error = parse_camera_device("/dev/null").expect_err("/dev/null is not a camera");
+        assert!(matches!(error, Error::CameraInvalidDevicePath { .. }));
+        assert!(is_device_absent(&error));
+    }
+
+    #[test]
+    fn present_but_unusable_devices_are_not_absent() {
+        assert!(!is_device_absent(&Error::CameraBusy {
+            device: "/dev/video0".to_owned()
+        }));
+        assert!(!is_device_absent(&Error::UnknownCameraFormat {
+            format: "XVID".to_owned()
+        }));
+    }
+
+    #[test]
+    fn absent_devices_leave_nothing_to_capture_from() {
+        let config = ClientConfig {
+            camera_devices: vec![
+                CameraDeviceConfig::new("/dev/video-does-not-exist"),
+                CameraDeviceConfig::new("/dev/null"),
+            ],
+            ..ClientConfig::default()
+        };
+
+        let error = capture_image(&config).expect_err("no device can be captured from");
+        let Error::NoCameraDeviceAvailable { devices } = error else {
+            panic!("expected NoCameraDeviceAvailable, got {error:?}");
+        };
+        assert_eq!(devices, ["/dev/video-does-not-exist", "/dev/null"]);
+    }
 }

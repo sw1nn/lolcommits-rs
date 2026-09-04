@@ -194,6 +194,14 @@ fn upload(args: UploadArgs) -> Result<()> {
             eprintln!("{} Camera {} is busy", "✗".red(), device.magenta());
             Err(Error::CameraBusy { device })
         }
+        Err(Error::NoCameraDeviceAvailable { devices }) => {
+            eprintln!(
+                "{} No camera device available (tried: {})",
+                "✗".red(),
+                devices.join(", ").magenta()
+            );
+            Err(Error::NoCameraDeviceAvailable { devices })
+        }
         Err(Error::ServerConnectionFailed { url, source }) => {
             eprintln!(
                 "{} Failed to connect to lolcommitsd at {}: {}",

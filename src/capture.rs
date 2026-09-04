@@ -6,7 +6,11 @@
 //!
 //! The following rules govern error handling for the upload client:
 //!
-//! - **Camera not available** (device does not exist): Exit with error.
+//! - **Camera device missing** (the configured path does not exist, or cannot name a camera):
+//!   Log a warning and try the next configured device. Exit with error only when no configured
+//!   device is available.
+//! - **Camera present but unusable** (permissions, no usable format, capture fails): Exit with
+//!   error.
 //! - **Camera busy** (device exists but in use): Exit with error, unless `--quiet` is passed.
 //!   With `--quiet`, log "camera busy" at INFO level and exit with return code 0.
 //! - **RUST_LOG**: When set, all logging should output at the appropriate level.
