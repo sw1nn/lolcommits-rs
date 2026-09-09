@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v6.1.0 - 2026-09-09
+#### Features
+- (**packaging**) publish the .deb as part of a release - (787cbf5) - Neale Swinnerton
+- (**packaging**) build and publish an Ubuntu package - (cba9e39) - Neale Swinnerton
+
+- - -
+
 ## v6.0.0 - 2026-09-04
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**config**) reject unknown keys and test the sample against the schema - (5c01cc5) - Neale Swinnerton
