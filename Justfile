@@ -11,8 +11,17 @@ _assert-main:
         exit 1
     fi
 
+# publish-deb runs last and pulls in package-deb. It is part of the release
+# because the deployment pins the Debian version and installs it from the
+# release asset: bumping without publishing the .deb leaves the pin naming a
+# package that cannot be fetched, which surfaces only when a converge fails.
+#
+# A failure after `package` leaves the Arch upload and the pushed tag in place.
+# Both `package` and `publish-deb` re-run standalone against the version in the
+# PKGBUILD, so recovery is to fix the cause and re-run the failed recipe.
+
 # Bump the version, tag and push (see cog.toml), then build and upload packages.
-release type='auto': _assert-main && package
+release type='auto': _assert-main && package publish-deb
     cog bump --{{ type }}
 
 # Build the Arch packages in a clean chroot, verify the version, then upload.
