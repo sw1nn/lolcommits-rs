@@ -1,0 +1,15 @@
+Package: lolcommits-server
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Neale Swinnerton <neale@sw1nn.com>
+Homepage: https://code.sw1nn.net/sw1nn/lolcommits-rs
+Description: Server daemon for processing lolcommits images
+ Receives webcam snapshots taken at git commit time, processes them and
+ serves the resulting gallery.
+ .
+ This package ships the daemon and its gallery static assets. The systemd
+ unit is deployed and parameterised by configuration management, so it is
+ deliberately not included here.
+Depends: @DEPENDS@
