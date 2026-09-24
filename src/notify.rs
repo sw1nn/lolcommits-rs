@@ -1,20 +1,23 @@
-//! Desktop notification for a completed upload.
+//! Desktop notifications for the outcome of an upload.
 //!
 //! `lolcommits-ctl upload` normally runs from a git `post-commit` hook with
-//! logging off, so a successful upload is otherwise silent. This module turns
-//! that into a freedesktop.org notification on the session bus.
+//! logging off and, when the hook is fire-and-forget, its output discarded.
+//! A successful upload is otherwise silent, and so is an expired session. This
+//! module turns both into a freedesktop.org notification on the session bus.
 
 use crate::config::ClientConfig;
 use std::{sync::mpsc, time::Duration};
 
 const APP_NAME: &str = "lolcommits";
 const SUMMARY: &str = "lolcommits uploaded";
+const LOGIN_REQUIRED_SUMMARY: &str = "lolcommits upload failed";
+const LOGIN_REQUIRED_BODY: &str = "Not logged in or session expired. Run: lolcommits-ctl login";
 
 /// How long to wait for the notification daemon to accept the notification.
 ///
 /// zbus sets no reply timeout of its own, so a daemon that owns the bus name
 /// but never answers would block the commit hook indefinitely. The upload has
-/// already succeeded by then, so a wedged daemon must cost the hook a few
+/// already finished by then, so a wedged daemon must cost the hook a few
 /// seconds rather than the whole commit.
 const SHOW_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -45,8 +48,26 @@ pub fn upload_succeeded(config: &ClientConfig, upload: &Upload<'_>) {
         return;
     }
 
-    let body = notification_body(upload);
-    tracing::debug!(body = %body, "Showing desktop notification");
+    show(SUMMARY, notification_body(upload));
+}
+
+/// Post a desktop notification telling the user to log in again.
+///
+/// Sent from every hook run until the user logs in: the hook discards the
+/// terminal message, so without this the uploads stop with no visible sign.
+/// Failures are logged and discarded, so the caller's own error is the one
+/// the hook exits with.
+pub fn login_required(config: &ClientConfig) {
+    if !config.desktop_notifications {
+        tracing::debug!("Desktop notifications disabled, not notifying");
+        return;
+    }
+
+    show(LOGIN_REQUIRED_SUMMARY, LOGIN_REQUIRED_BODY.to_owned());
+}
+
+fn show(summary: &'static str, body: String) {
+    tracing::debug!(summary, body = %body, "Showing desktop notification");
 
     let (sender, receiver) = mpsc::channel();
     std::thread::spawn(move || {
@@ -54,7 +75,7 @@ pub fn upload_succeeded(config: &ClientConfig, upload: &Upload<'_>) {
         // Drop impl, so this does not wait for the user to dismiss anything.
         let shown = notify_rust::Notification::new()
             .appname(APP_NAME)
-            .summary(SUMMARY)
+            .summary(summary)
             .body(&body)
             .show()
             .map(drop);

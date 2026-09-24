@@ -21,8 +21,10 @@
 //!   INFO level and show a desktop notification, unless `desktop_notifications` is off. A
 //!   notification that cannot be shown is logged and ignored: the upload already succeeded.
 //! - **Not logged in** (no stored credentials, or the issuer refuses the refresh): Exit with
-//!   error, telling the user to run `lolcommits-ctl login`. A failed refresh that was not a
-//!   refusal — a network or DNS failure — is reported as itself instead.
+//!   error, telling the user to run `lolcommits-ctl login`, and show a desktop notification
+//!   saying the same, unless `desktop_notifications` is off: a fire-and-forget hook discards
+//!   the terminal message. A failed refresh that was not a refusal — a network or DNS
+//!   failure — is reported as itself instead.
 
 use crate::{
     camera,
@@ -123,7 +125,11 @@ pub fn capture_lolcommit(config: config::Config, args: CaptureArgs) -> Result<()
     tracing::debug!(bytes = png_bytes.len(), "Encoded image to PNG");
 
     // Upload to server
-    upload_to_server(&client_config, &auth_config, png_bytes, metadata)?;
+    upload_to_server(&client_config, &auth_config, png_bytes, metadata).inspect_err(|error| {
+        if matches!(error, Error::NotLoggedIn) {
+            notify::login_required(&client_config);
+        }
+    })?;
 
     notify::upload_succeeded(
         &client_config,
