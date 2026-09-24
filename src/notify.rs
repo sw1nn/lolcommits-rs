@@ -12,6 +12,7 @@ const APP_NAME: &str = "lolcommits";
 const SUMMARY: &str = "lolcommits uploaded";
 const LOGIN_REQUIRED_SUMMARY: &str = "lolcommits upload failed";
 const LOGIN_REQUIRED_BODY: &str = "Not logged in or session expired. Run: lolcommits-ctl login";
+const ERROR_ICON: &str = "dialog-error";
 
 /// How long to wait for the notification daemon to accept the notification.
 ///
@@ -48,7 +49,7 @@ pub fn upload_succeeded(config: &ClientConfig, upload: &Upload<'_>) {
         return;
     }
 
-    show(SUMMARY, notification_body(upload));
+    show(SUMMARY, notification_body(upload), Severity::Info);
 }
 
 /// Post a desktop notification telling the user to log in again.
@@ -63,22 +64,36 @@ pub fn login_required(config: &ClientConfig) {
         return;
     }
 
-    show(LOGIN_REQUIRED_SUMMARY, LOGIN_REQUIRED_BODY.to_owned());
+    show(
+        LOGIN_REQUIRED_SUMMARY,
+        LOGIN_REQUIRED_BODY.to_owned(),
+        Severity::Error,
+    );
 }
 
-fn show(summary: &'static str, body: String) {
-    tracing::debug!(summary, body = %body, "Showing desktop notification");
+#[derive(Clone, Copy, Debug)]
+enum Severity {
+    Info,
+    Error,
+}
+
+fn show(summary: &'static str, body: String, severity: Severity) {
+    tracing::debug!(summary, body = %body, ?severity, "Showing desktop notification");
 
     let (sender, receiver) = mpsc::channel();
     std::thread::spawn(move || {
         // The handle is dropped here rather than returned: on XDG it carries no
         // Drop impl, so this does not wait for the user to dismiss anything.
-        let shown = notify_rust::Notification::new()
-            .appname(APP_NAME)
-            .summary(summary)
-            .body(&body)
-            .show()
-            .map(drop);
+        let mut notification = notify_rust::Notification::new();
+        notification.appname(APP_NAME).summary(summary).body(&body);
+        if let Severity::Error = severity {
+            // Critical urgency keeps the notification on screen until dismissed:
+            // uploads stay broken until the user logs in again.
+            notification
+                .icon(ERROR_ICON)
+                .urgency(notify_rust::Urgency::Critical);
+        }
+        let shown = notification.show().map(drop);
 
         let _ = sender.send(shown);
     });
