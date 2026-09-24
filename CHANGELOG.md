@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v6.2.0 - 2026-09-24
+#### Features
+- (**notify**) show a desktop notification when a login is required - (a35c281) - Neale Swinnerton
+
+- - -
+
 ## v6.1.0 - 2026-09-09
 #### Features
 - (**packaging**) publish the .deb as part of a release - (787cbf5) - Neale Swinnerton

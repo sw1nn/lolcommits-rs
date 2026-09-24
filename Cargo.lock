@@ -4482,7 +4482,7 @@ dependencies = [
 
 [[package]]
 name = "sw1nn-lolcommits-rs"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "ab_glyph",
  "async-stream",
