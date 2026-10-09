@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+:root {
+    --picker-bg: #ffb53d;
+    --picker-fg: #1a1004;
+}
+
+body {
+    background: #120b03;
+}
+
+#stage {
+    --amber: #ffb53d;
+    --dim: #a8742a;
+    background: radial-gradient(90cqw 60cqw at 50% 45%, #241707, #120b03 75%);
+    color: var(--amber);
+    font: 1.4cqw/1.5 "IBM Plex Mono", ui-monospace, monospace;
+    text-shadow: 0 0 .5cqw rgb(255 160 40 / .45);
+}
+
+#stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgb(0 0 0 / .22) 0 .15cqw, transparent .15cqw .4cqw); }
+#stage .prompt { position: absolute; left: 3.4cqw; top: 2.6cqw; right: 20cqw; }
+#stage .u { color: var(--dim); }
+#stage .cam { position: absolute; left: 3.4cqw; top: 7cqw; width: 40cqw; border: .15cqw solid var(--dim); padding: .6cqw; }
+#stage .cam .photo img { filter: grayscale(1) sepia(1) saturate(2.6) hue-rotate(-12deg) brightness(.9) contrast(1.15); }
+#stage .cam .lbl { position: absolute; top: -1.1cqw; left: 1.4cqw; background: #1c1205; padding: 0 .6cqw; font-size: 1.05cqw; color: var(--dim); }
+#stage .out { position: absolute; left: 47cqw; top: 7cqw; right: 3.4cqw; bottom: 4cqw; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; }
+#stage .out .k { color: #ffd98a; font-weight: 600; }
+#stage .out .d { color: var(--dim); }
+#stage .out .ins { color: #c8e06a; }
+#stage .out .del { color: #ff7b4a; }
+#stage .cursor { display: inline-block; width: .8cqw; height: 1.6cqw; background: var(--amber); vertical-align: -.3cqw; animation: term-blink 1s steps(1) infinite; }
+#stage .status { position: absolute; left: 0; right: 0; bottom: 0; background: var(--amber); color: #1a1004; text-shadow: none; display: flex; gap: 2.4cqw; padding: .5cqw 3.4cqw; font-size: 1.2cqw; font-weight: 600; white-space: nowrap; overflow: hidden; }
+#stage .status button { background: none; color: inherit; font-weight: 600; padding: 0; }
+#stage .status button:disabled { opacity: .35; }
+#stage .status .sp { flex: 1; }
+
+@keyframes term-blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+    #stage .cursor { animation: none; }
+}

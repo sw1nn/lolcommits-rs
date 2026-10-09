@@ -6,6 +6,7 @@
 const STYLES = [
     { id: 'current', name: 'Current', fixed: false },
     { id: 'museum', name: 'Gallery wall', fixed: true },
+    { id: 'term', name: 'Terminal', fixed: true },
 ];
 const DEFAULT_STYLE = 'current';
 const STORAGE_KEY = 'lolcommits.style';
