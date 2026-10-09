@@ -428,7 +428,7 @@
         </div>
 
         <div class="carousel" id="carousel" style="display: none;">
-            <button class="nav-button prev" id="prevBtn" aria-label="Previous image">
+            <button class="nav-button prev" id="prevBtn" aria-label="Older image">
                 ←
             </button>
 
@@ -447,7 +447,7 @@
                 </div>
             </div>
 
-            <button class="nav-button next" id="nextBtn" aria-label="Next image">
+            <button class="nav-button next" id="nextBtn" aria-label="Newer image">
                 →
             </button>
 
@@ -596,8 +596,8 @@
             updateChyron(image);
 
             // Update button states
-            document.getElementById('prevBtn').disabled = index === 0;
-            document.getElementById('nextBtn').disabled = index === images.length - 1;
+            document.getElementById('prevBtn').disabled = index === images.length - 1;
+            document.getElementById('nextBtn').disabled = index === 0;
         }
 
         // Format number with k/M suffix for numbers over 999
@@ -684,30 +684,31 @@
             document.getElementById('error').classList.add('visible');
         }
 
-        function nextImage() {
+        // images are sorted newest first, so a higher index is older
+        function olderImage() {
             if (currentIndex < images.length - 1) {
                 displayImage(currentIndex + 1);
             }
         }
 
-        function prevImage() {
+        function newerImage() {
             if (currentIndex > 0) {
                 displayImage(currentIndex - 1);
             }
         }
 
         // Event listeners
-        document.getElementById('nextBtn').addEventListener('click', nextImage);
-        document.getElementById('prevBtn').addEventListener('click', prevImage);
+        document.getElementById('nextBtn').addEventListener('click', newerImage);
+        document.getElementById('prevBtn').addEventListener('click', olderImage);
 
         // Keyboard navigation
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowRight') {
                 e.preventDefault();
-                nextImage();
+                newerImage();
             } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
-                prevImage();
+                olderImage();
             } else if (e.key === ' ') {
                 e.preventDefault();
                 toggleChyron();
