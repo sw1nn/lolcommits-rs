@@ -21,6 +21,12 @@
             }
             if (window.matchMedia('(max-width: 699px)').matches) id = 'current';
             document.write('<link rel="stylesheet" id="style-css" data-style="' + id + '" href="/ui/styles/' + id + '.css">');
+            // Web fonts are optional. media=print keeps this sheet from
+            // blocking first paint, and from blocking it forever if Google is
+            // unreachable; it switches to all once loaded.
+            if (id !== 'current') {
+                document.write('<link rel="stylesheet" id="style-fonts" href="/ui/styles/' + id + '.fonts.css" media="print" onload="this.media=\'all\'">');
+            }
         })();
     </script>
 </head>

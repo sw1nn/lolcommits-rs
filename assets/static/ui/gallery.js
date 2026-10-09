@@ -112,6 +112,11 @@ function bindCommit(root, image, index, skipStrips) {
         el.textContent = fields[name] ?? '';
         if (name === 'title' || name === 'message') el.title = fields.message;
     });
+    // data-hide-zero on a wrapper hides it when its bound value is "0"
+    root.querySelectorAll('[data-hide-zero]').forEach(el => {
+        if (!inScope(el)) return;
+        el.hidden = el.querySelector('[data-f]')?.textContent === '0';
+    });
     root.querySelectorAll('img[data-photo]').forEach(img => {
         if (!inScope(img)) return;
         img.src = imageUrl(image);
@@ -133,6 +138,10 @@ function renderStrips(root) {
     root.querySelectorAll('[data-strip]').forEach(strip => {
         const template = strip.querySelector('template[data-strip-frame]');
         if (!template) return;
+        // Rebuilding the frames would drop keyboard focus from the focused one
+        const focused = document.activeElement;
+        const focusedItem = focused?.closest?.('[data-strip-item]');
+        const refocus = focusedItem && strip.contains(focusedItem) ? focusedItem.dataset.stripItem : null;
         strip.querySelectorAll('[data-strip-item]').forEach(el => el.remove());
         for (const i of stripWindow(state.index, state.images.length, STRIP_SIZE)) {
             const frame = template.content.firstElementChild.cloneNode(true);
@@ -140,6 +149,11 @@ function renderStrips(root) {
             frame.classList.toggle('is-current', i === state.index);
             bindCommit(frame, state.images[i], i, false);
             strip.appendChild(frame);
+        }
+        if (refocus !== null) {
+            const frames = [...strip.querySelectorAll('[data-strip-item]')];
+            const target = frames.find(f => f.dataset.stripItem === refocus) ?? frames.find(f => f.classList.contains('is-current'));
+            target?.focus();
         }
     });
 }
@@ -232,12 +246,35 @@ function loadStylesheet(id) {
     link.rel = 'stylesheet';
     link.href = `/ui/styles/${id}.css`;
     link.dataset.style = id;
+    // Held back until applyStyle swaps the markup, so the old markup is never
+    // restyled by the new sheet
+    link.media = 'print';
     const ready = new Promise((resolve, reject) => {
         link.onload = resolve;
         link.onerror = () => reject(new Error(`Could not load ${link.href}`));
     });
     document.head.appendChild(link);
     return { link, ready };
+}
+
+// Web fonts are optional: each fixed style names system fallbacks, so the font
+// sheet is separate from the style sheet and never awaited. A failure here
+// must not stop the style from applying.
+function applyFonts(style) {
+    const existing = document.getElementById('style-fonts');
+    if (!style.fixed) {
+        existing?.remove();
+        return;
+    }
+    const href = `/ui/styles/${style.id}.fonts.css`;
+    if (existing && existing.getAttribute('href') === href) return;
+    existing?.remove();
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.id = 'style-fonts';
+    link.href = href;
+    link.onerror = () => console.warn('Could not load the web fonts, using fallbacks', href);
+    document.head.appendChild(link);
 }
 
 // Resolves true when the style is active. On failure the previous style stays.
@@ -258,6 +295,7 @@ async function applyStyle(id) {
             link.id = 'style-css';
         }
         const root = stage();
+        link.media = 'all';
         // Fragments are our own static files, never commit data
         root.innerHTML = html;
         root.dataset.style = style.id;
@@ -266,6 +304,7 @@ async function applyStyle(id) {
         hidePickerError();
         render();
         renderPicker();
+        applyFonts(style);
         return true;
     } catch (error) {
         if (!reuse) link.remove();
@@ -407,8 +446,10 @@ async function loadConfig() {
 async function loadImages() {
     const response = await fetch('/api/images');
     if (!response.ok) throw new Error(`GET /api/images returned ${response.status}`);
+    const images = await response.json();
+    // Read after the await: a navigation during the fetch must not be undone
     const shown = state.images[state.index]?.revision;
-    state.images = await response.json();
+    state.images = images;
     const found = shown ? state.images.findIndex(image => image.revision === shown) : -1;
     state.index = found >= 0 ? found : Math.min(state.index, Math.max(state.images.length - 1, 0));
 }

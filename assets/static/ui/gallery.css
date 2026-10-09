@@ -26,6 +26,11 @@ body {
     margin: auto;
     container-type: inline-size;
     overflow: hidden;
+}
+
+/* Not the whole stage: hashes and subjects must stay selectable */
+:where(#stage.fixed) button,
+:where(#stage.fixed) [data-strip] {
     user-select: none;
 }
 

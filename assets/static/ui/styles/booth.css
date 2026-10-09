@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Courier+Prime:wght@400;700&display=swap');
-
 :root {
     --picker-bg: #1a1210;
     --picker-fg: #ffd76a;
@@ -42,6 +40,9 @@ body {
 #stage .pad { position: absolute; left: 68cqw; top: 44cqw; display: flex; gap: 2.4cqw; align-items: center; }
 #stage .pad button { width: 6cqw; height: 6cqw; border-radius: 50%; color: #fff; font: 2.4cqw "Bungee", Impact, sans-serif; background: radial-gradient(circle at 35% 30%, #ff6a6a, #c4121f 60%, #7a0812); box-shadow: 0 .6cqw 0 #4a050b, 0 1cqw 1.4cqw rgb(0 0 0 / .5); }
 #stage .pad button.newer { background: radial-gradient(circle at 35% 30%, #fff19a, #f0b616 60%, #9a6c05); color: #4a2a00; box-shadow: 0 .6cqw 0 #5a3c02, 0 1cqw 1.4cqw rgb(0 0 0 / .5); }
+/* Drawn, not glyphs: Bungee has no arrows, so the fallback is a colour emoji */
+#stage .pad button::before { content: ""; display: block; margin: auto; width: 2.2cqw; height: 2.2cqw; background: currentColor; clip-path: polygon(80% 0, 80% 100%, 5% 50%); }
+#stage .pad button.newer::before { clip-path: polygon(20% 0, 20% 100%, 95% 50%); }
 #stage .pad button:active:not(:disabled) { transform: translateY(.4cqw); box-shadow: 0 .2cqw 0 #4a050b; }
 #stage .pad button:disabled { filter: grayscale(1) brightness(.7); }
 #stage .pad .pose { color: #ffd76a; font: 1.4cqw "Bungee", Impact, sans-serif; text-shadow: 0 .2cqw .4cqw #000; }
