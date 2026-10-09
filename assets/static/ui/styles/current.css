@@ -1,0 +1,242 @@
+:root {
+    --picker-bg: rgba(0, 0, 0, 0.6);
+    --picker-fg: #fff;
+}
+
+body {
+    /* The scrim keeps the white text readable over the bright sky in the
+       middle of the photo. */
+    background-color: #2b2440;
+    background-image:
+        linear-gradient(rgba(12, 14, 32, 0.45), rgba(12, 14, 32, 0.45)),
+        url('/static/background.webp');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    color: #fff;
+}
+
+#stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.cur-header {
+    padding: 2rem;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.cur-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.subtitle {
+    font-size: 1rem;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+.carousel-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+}
+
+.carousel {
+    position: relative;
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-date {
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin-bottom: 1.5rem;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.image-wrapper {
+    position: relative;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    max-width: 900px;
+    width: 100%;
+}
+
+.image-wrapper img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.web-chyron {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    font-family: monospace;
+    opacity: 0;
+    transform: translateY(100%);
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+#stage.info-on .web-chyron {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.web-chyron .commit-title {
+    position: absolute;
+    left: 15px;
+    top: 12px;
+    font-size: 16px;
+    color: #fff;
+    max-width: calc(100% - 200px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 20px;
+}
+
+.web-chyron .commit-revision {
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    font-size: 28px;
+    color: #ffff00;
+}
+
+.web-chyron .commit-info-line {
+    position: absolute;
+    left: 15px;
+    top: 45px;
+    font-size: 18px;
+    color: #b4b4b4;
+    max-width: calc(100% - 250px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.web-chyron .commit-stats {
+    position: absolute;
+    right: 15px;
+    top: 45px;
+    font-size: 18px;
+}
+
+.web-chyron .stat-files { color: #ffff00; }
+.web-chyron .stat-insertions { color: #00ff00; }
+.web-chyron .stat-deletions { color: #ff0000; }
+
+.nav-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #667eea;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    z-index: 10;
+}
+
+.nav-button:hover {
+    background: #fff;
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.nav-button:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.nav-button.prev { left: 2rem; }
+.nav-button.next { right: 2rem; }
+
+.nav-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.nav-button:disabled:hover {
+    transform: translateY(-50%) scale(1);
+}
+
+.keyboard-hint {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    opacity: 0.8;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.key {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+    min-width: 2rem;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .nav-button {
+        width: 50px;
+        height: 50px;
+        font-size: 1.2rem;
+    }
+
+    .nav-button.prev { left: 1rem; }
+    .nav-button.next { right: 1rem; }
+
+    .cur-header h1 { font-size: 1.8rem; }
+
+    .keyboard-hint { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .web-chyron { transition: none; }
+}

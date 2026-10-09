@@ -46,5 +46,8 @@ package_lolcommits-server() {
   cd ${pkgbase}
   install -Dt "$pkgdir"/usr/bin ${CARGO_TARGET_DIR:-target}/release/lolcommitsd
   install -Dm0644 -t "$pkgdir"/usr/lib/systemd/system assets/lolcommitsd.service
-  install -Dm0644 -t "$pkgdir"/usr/share/lolcommits/static assets/static/*
+  # Recursive: the gallery's ui/ tree has subdirectories
+  find assets/static -type f -printf '%P\n' | while IFS= read -r f; do
+    install -D --mode=0644 "assets/static/$f" "$pkgdir/usr/share/lolcommits/static/$f"
+  done
 }

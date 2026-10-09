@@ -1,0 +1,36 @@
+<header class="cur-header">
+    <h1 data-f="gallery"></h1>
+    <p class="subtitle">Your commit history, captured</p>
+</header>
+
+<div class="carousel-container">
+    <div class="carousel">
+        <button class="nav-button prev" type="button" data-nav="older" aria-label="Older image">←</button>
+
+        <div class="image-date">
+            <span class="image-date-day" data-f="day"></span>
+            <span class="image-date-time" data-f="time"></span>
+        </div>
+
+        <div class="image-wrapper">
+            <img data-photo alt="">
+            <div class="web-chyron">
+                <div class="commit-title" data-f="title"></div>
+                <div class="commit-revision" data-f="hash"></div>
+                <div class="commit-info-line" data-f="infoline"></div>
+                <div class="commit-stats">
+                    <span class="stat-files">(<span data-f="files"></span>)</span>
+                    <span class="stat-insertions">+<span data-f="ins"></span></span>
+                    <span class="stat-deletions">-<span data-f="del"></span></span>
+                </div>
+            </div>
+        </div>
+
+        <button class="nav-button next" type="button" data-nav="newer" aria-label="Newer image">→</button>
+    </div>
+</div>
+
+<div class="keyboard-hint">
+    <span>Use <span class="key">←</span> <span class="key">→</span> to navigate</span>
+    <span><span class="key">Space</span> to toggle info</span>
+</div>

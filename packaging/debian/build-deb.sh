@@ -23,7 +23,10 @@ cargo build --release --locked
 stage=/tmp/stage
 rm -rf "$stage"
 install -Dm0755 target/release/lolcommitsd "$stage/usr/bin/lolcommitsd"
-install -Dm0644 -t "$stage/usr/share/lolcommits/static" assets/static/*
+# Recursive: the gallery's ui/ tree has subdirectories
+find assets/static -type f -printf '%P\n' | while IFS= read -r f; do
+  install -D --mode=0644 "assets/static/$f" "$stage/usr/share/lolcommits/static/$f"
+done
 
 # Derive Depends from the binary rather than hardcoding a library list. A
 # soname change (an OpenCV major bump, say) then fails the build here instead
