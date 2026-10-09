@@ -23,8 +23,9 @@ cargo build --release --locked
 stage=/tmp/stage
 rm -rf "$stage"
 install -Dm0755 target/release/lolcommitsd "$stage/usr/bin/lolcommitsd"
-# Recursive: the gallery's ui/ tree has subdirectories
-find assets/static -type f -printf '%P\n' | while IFS= read -r f; do
+# Recursive: the gallery's ui/ tree has subdirectories. Hidden files (editor
+# droppings, .gitkeep) are not part of the gallery.
+find assets/static -type f -not -name '.*' -printf '%P\n' | while IFS= read -r f; do
   install -D --mode=0644 "assets/static/$f" "$stage/usr/share/lolcommits/static/$f"
 done
 
