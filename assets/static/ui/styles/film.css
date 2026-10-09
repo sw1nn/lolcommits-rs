@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@500&family=Permanent+Marker&display=swap');
+
+:root {
+    --picker-bg: #2a1d17;
+    --picker-fg: #f0e6dc;
+}
+
+body {
+    background: #140c0b;
+    color: #f0e6dc;
+}
+
+#stage {
+    background:
+        radial-gradient(60cqw 34cqw at 50% -6%, rgb(200 30 20 / .42), transparent 70%),
+        #140c0b;
+    font-family: "DM Mono", ui-monospace, monospace;
+}
+
+#stage .line { position: absolute; left: 0; right: 0; top: 4.2cqw; height: .25cqw; background: #6b5a52; }
+#stage .print { position: absolute; left: 27cqw; top: 3cqw; width: 34cqw; background: #f6f2ea; padding: 1.4cqw 1.4cqw 4.2cqw; transform: rotate(-1.4deg); box-shadow: 0 1.4cqw 2.6cqw rgb(0 0 0 / .6); }
+#stage .print .photo img { filter: contrast(1.05) saturate(.85); }
+#stage .peg { position: absolute; top: -1.6cqw; width: 1.4cqw; height: 4.2cqw; background: linear-gradient(90deg, #b88a5a, #d9ad7c, #b88a5a); border-radius: .3cqw; box-shadow: 0 .3cqw .5cqw rgb(0 0 0 / .4); z-index: 1; }
+#stage .peg.a { left: 5cqw; }
+#stage .peg.b { right: 5cqw; }
+#stage .scrawl { position: absolute; left: 1.6cqw; right: 1.6cqw; bottom: .7cqw; font: 1.8cqw/1 "Permanent Marker", "Comic Sans MS", cursive; color: #2a2522; display: flex; justify-content: space-between; gap: 1cqw; }
+#stage .tape { position: absolute; left: 64cqw; top: 11cqw; width: 22cqw; background: rgb(236 222 180 / .92); color: #2a2522; padding: 1.2cqw 1.4cqw; transform: rotate(2deg); font: 1.55cqw/1.25 "Permanent Marker", "Comic Sans MS", cursive; box-shadow: 0 .4cqw .8cqw rgb(0 0 0 / .4); display: grid; gap: .6cqw; overflow-wrap: anywhere; }
+#stage .tape small { font: 500 1.1cqw "DM Mono", ui-monospace, monospace; color: #6a5a48; }
+#stage .tape .ins { color: #2e7a3a; }
+#stage .tape .del { color: #b02a1f; }
+#stage .strip {
+    position: absolute; left: 0; right: 0; bottom: 3.6cqw; height: 15.6cqw;
+    background:
+        radial-gradient(circle, #140c0b .55cqw, transparent .6cqw) 0 .9cqw / 2.6cqw 2cqw repeat-x,
+        radial-gradient(circle, #140c0b .55cqw, transparent .6cqw) 0 calc(100% - .9cqw) / 2.6cqw 2cqw repeat-x,
+        #2a1d17;
+    display: flex; gap: 1.4cqw; align-items: center; justify-content: center; padding: 0 3cqw;
+}
+#stage .frame { position: relative; width: 14.6cqw; background: none; padding: 0; }
+#stage .frame .photo img { filter: grayscale(.2) sepia(.35) brightness(.85); }
+#stage .frame .num { position: absolute; left: 0; top: -1.9cqw; font-size: .95cqw; color: #e8a33d; letter-spacing: .08em; }
+#stage .frame.is-current { outline: .35cqw solid #ff3b2f; outline-offset: .45cqw; border-radius: .2cqw; }
+#stage .frame.is-current .photo img { filter: none; }
+#stage .edge { position: absolute; left: 3cqw; right: 3cqw; bottom: 1cqw; display: flex; justify-content: space-between; align-items: center; font-size: 1cqw; color: #e8a33d; letter-spacing: .14em; }
+#stage .edge button { background: none; color: #e8a33d; font-size: 1.1cqw; letter-spacing: .14em; padding: .2cqw 0; }
+#stage .edge button:disabled { opacity: .3; }

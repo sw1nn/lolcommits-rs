@@ -8,6 +8,7 @@ const STYLES = [
     { id: 'museum', name: 'Gallery wall', fixed: true },
     { id: 'term', name: 'Terminal', fixed: true },
     { id: 'news', name: 'Newsroom', fixed: true },
+    { id: 'film', name: 'Darkroom', fixed: true },
 ];
 const DEFAULT_STYLE = 'current';
 const STORAGE_KEY = 'lolcommits.style';
