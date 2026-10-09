@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,400&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap');
+
+:root {
+    --picker-bg: #ffffff;
+    --picker-fg: #1d1f23;
+}
+
+body {
+    background: #c9ccd1;
+    color: #1d1f23;
+}
+
+#stage {
+    background:
+        radial-gradient(38cqw 30cqw at 34% 30%, rgb(255 255 255 / .75), transparent 70%),
+        linear-gradient(180deg, #e4e6e9 0%, #d9dce0 84%, #b9bcc1 84.2%, #c9ccd1 100%);
+    font-family: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+}
+
+#stage .brand { position: absolute; left: 4cqw; top: 3.2cqw; font-size: 1.15cqw; letter-spacing: .14em; text-transform: uppercase; color: #5b6068; }
+#stage .brand b { color: #1d1f23; font-weight: 600; }
+#stage .hang { position: absolute; left: 13cqw; top: 9cqw; width: 42cqw; background: #fbfbfa; padding: 2.6cqw; border: .55cqw solid #24262a; box-shadow: 0 1.6cqw 3cqw rgb(0 0 0 / .22), 0 .2cqw .4cqw rgb(0 0 0 / .2); }
+#stage .placard { position: absolute; left: 62cqw; top: 29cqw; width: 22cqw; background: #fff; padding: 1.6cqw 1.8cqw; box-shadow: 0 .3cqw .8cqw rgb(0 0 0 / .12); display: grid; gap: .5cqw; font-size: 1.15cqw; line-height: 1.35; overflow-wrap: anywhere; }
+#stage .placard .who { font-weight: 600; font-size: 1.25cqw; }
+#stage .placard .ttl { font-family: "Newsreader", Georgia, serif; font-style: italic; font-size: 1.9cqw; line-height: 1.15; }
+#stage .placard .ttl .yr { font-style: normal; }
+#stage .placard .med { color: #5b6068; }
+#stage .placard .acc { color: #5b6068; font-size: 1cqw; letter-spacing: .06em; border-top: .1cqw solid #d4d6da; padding-top: .6cqw; font-variant-numeric: tabular-nums; }
+#stage .walk { position: absolute; left: 4cqw; right: 4cqw; bottom: 2.4cqw; display: flex; justify-content: space-between; align-items: center; gap: 2cqw; font-size: 1.25cqw; color: #3a3d43; }
+#stage .walk button { background: none; color: inherit; padding: .4cqw 0; letter-spacing: .1em; text-transform: uppercase; font-size: 1.1cqw; font-weight: 600; }
+#stage .walk button:disabled { opacity: .3; }
+#stage .walk .where { letter-spacing: .1em; text-transform: uppercase; font-size: 1.05cqw; color: #5b6068; font-variant-numeric: tabular-nums; }
