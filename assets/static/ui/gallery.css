@@ -29,31 +29,32 @@ body {
     user-select: none;
 }
 
-#stage.fixed button {
+/* :where() keeps these shared defaults at zero specificity so each style can override them */
+:where(#stage.fixed) button {
     font: inherit;
     border: 0;
     cursor: pointer;
 }
 
-#stage.fixed button:disabled {
+:where(#stage.fixed) button:disabled {
     cursor: not-allowed;
 }
 
-#stage.fixed .photo {
+:where(#stage.fixed) .photo {
     position: relative;
     overflow: hidden;
     aspect-ratio: 4 / 3;
     max-width: 100%;
 }
 
-#stage.fixed .photo img {
+:where(#stage.fixed) .photo img {
     display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-#stage .ell {
+:where(#stage) .ell {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

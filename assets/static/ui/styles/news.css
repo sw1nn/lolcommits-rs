@@ -24,10 +24,10 @@ body {
 #stage .live i { width: 1.1cqw; height: 1.1cqw; border-radius: 50%; background: #ff2b2b; box-shadow: 0 0 .8cqw #ff2b2b; animation: news-blink 1.6s infinite; }
 #stage .live span { background: rgb(0 0 0 / .45); padding: .2cqw .7cqw; }
 #stage .clock { position: absolute; right: 1.6cqw; bottom: 11.2cqw; background: rgb(0 0 0 / .45); padding: .2cqw .8cqw; font: 500 1.5cqw "Roboto Mono", ui-monospace, monospace; }
-#stage .lower { position: absolute; left: 6cqw; right: 6cqw; top: 36.5cqw; display: grid; }
+#stage .lower { position: absolute; left: 6cqw; right: 6cqw; top: 36.5cqw; display: grid; grid-template-columns: minmax(0, 1fr); }
 #stage .lower .kicker { justify-self: start; background: #e01e2b; font-weight: 800; font-size: 1.5cqw; letter-spacing: .08em; padding: .3cqw 1.2cqw; text-transform: uppercase; }
 #stage .lower .head { background: #fff; color: #0b1636; font-weight: 800; font-size: 3.4cqw; line-height: 1.1; padding: 1cqw 1.6cqw; text-transform: uppercase; }
-#stage .lower .sub { background: #12245a; display: flex; gap: 1.6cqw; align-items: center; padding: .7cqw 1.6cqw; font-size: 1.6cqw; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+#stage .lower .sub { background: #12245a; display: flex; gap: 1.6cqw; align-items: center; padding: .7cqw 1.6cqw; font-size: 1.6cqw; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
 #stage .lower .sub .hash { font: 500 1.4cqw "Roboto Mono", ui-monospace, monospace; color: #ffd84a; }
 #stage .lower .sub .ins { color: #5ee08a; }
 #stage .lower .sub .del { color: #ff7a7a; }
@@ -39,7 +39,8 @@ body {
 #stage .nav.newer { right: 4cqw; }
 #stage .ticker { position: absolute; left: 0; right: 0; bottom: 0; height: 4.4cqw; background: #ffd84a; color: #0b1636; display: flex; align-items: stretch; overflow: hidden; }
 #stage .ticker b { background: #0b1636; color: #ffd84a; display: grid; place-items: center; padding: 0 1.6cqw; font-size: 1.6cqw; letter-spacing: .1em; z-index: 1; }
-#stage .ticker .run { display: flex; gap: 4cqw; align-items: center; white-space: nowrap; padding-left: 3cqw; font-weight: 600; font-size: 1.7cqw; text-transform: uppercase; animation: news-tick 40s linear infinite; }
+#stage .ticker .run { display: flex; align-items: center; white-space: nowrap; font-weight: 600; font-size: 1.7cqw; text-transform: uppercase; animation: news-tick 40s linear infinite; }
+#stage .ticker .run span { padding-left: 4cqw; }
 #stage .ticker .run span::before { content: "■"; margin-right: 1.2cqw; font-size: 1cqw; vertical-align: middle; }
 
 @keyframes news-tick { to { transform: translateX(-50%); } }
