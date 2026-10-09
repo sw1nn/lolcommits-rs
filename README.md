@@ -238,8 +238,9 @@ bind_port = 3000
 The gallery page, its `/static/` assets and its `/ui/` scripts and styles are
 read from disk at request time, not compiled into the binary. The
 `lolcommits-server` package installs them to `/usr/share/lolcommits/static`,
-which is the default. `/ui/` is served from the `ui/` subdirectory with
-`Cache-Control: no-cache`, so a new release reaches browsers at once.
+which is the default. The page and `/ui/` (served from the `ui/`
+subdirectory) are sent with `Cache-Control: no-cache`, so a new release reaches
+browsers at once.
 
 ```toml
 [server]

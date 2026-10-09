@@ -33,9 +33,10 @@ use crate::{
 /// maximum.
 const STATIC_CACHE_CONTROL: &str = "public, max-age=31536000";
 
-/// Cache policy for `/ui` files: the browser must revalidate each use. These
-/// files change with each release under the same name, and `ServeDir` answers
-/// a revalidation with 304 when the file is unchanged.
+/// Cache policy for the gallery page and `/ui` files: the browser must
+/// revalidate each use. The page and the scripts it loads change together with
+/// each release under the same name, and `ServeFile`/`ServeDir` answer a
+/// revalidation with 304 when the file is unchanged.
 const UI_CACHE_CONTROL: &str = "no-cache";
 
 struct SseConnectionGuard;
@@ -227,8 +228,15 @@ where
             HeaderValue::from_static(UI_CACHE_CONTROL),
         ));
 
-    Router::new()
+    let index = Router::new()
         .route_service("/", ServeFile::new(static_root.join("index.html")))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static(UI_CACHE_CONTROL),
+        ));
+
+    Router::new()
+        .merge(index)
         .nest_service("/static", assets)
         .nest_service("/ui", ui)
 }
@@ -777,6 +785,19 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_string(response).await?, "<h1>gallery</h1>");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn index_must_be_revalidated() -> Result<()> {
+        let dir = static_root_fixture()?;
+
+        let response = fetch(static_router(dir.path()), "/").await;
+
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL),
+            Some(&axum::http::HeaderValue::from_static(UI_CACHE_CONTROL))
+        );
         Ok(())
     }
 
