@@ -33,6 +33,11 @@ use crate::{
 /// maximum.
 const STATIC_CACHE_CONTROL: &str = "public, max-age=31536000";
 
+/// Cache policy for `/ui` files: the browser must revalidate each use. These
+/// files change with each release under the same name, and `ServeDir` answers
+/// a revalidation with 304 when the file is unchanged.
+const UI_CACHE_CONTROL: &str = "no-cache";
+
 struct SseConnectionGuard;
 
 impl Drop for SseConnectionGuard {
@@ -198,6 +203,9 @@ pub fn create_router(
 /// had. Filenames are not versioned, so a changed asset only reaches browsers
 /// that already hold one if it is given a new name. `index.html` is left
 /// uncached, which is what lets such a rename take effect.
+///
+/// `/ui` holds the gallery's scripts and styles. They keep their names across
+/// releases, so they are served with `no-cache` and revalidated on each use.
 fn static_router<P, S>(static_root: P) -> Router<S>
 where
     P: AsRef<Path>,
@@ -212,9 +220,17 @@ where
             HeaderValue::from_static(STATIC_CACHE_CONTROL),
         ));
 
+    let ui = Router::new()
+        .fallback_service(ServeDir::new(static_root.join("ui")))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static(UI_CACHE_CONTROL),
+        ));
+
     Router::new()
         .route_service("/", ServeFile::new(static_root.join("index.html")))
         .nest_service("/static", assets)
+        .nest_service("/ui", ui)
 }
 
 async fn list_images() -> Response {
@@ -740,6 +756,9 @@ mod tests {
         let dir = tempfile::tempdir()?;
         std::fs::write(dir.path().join("index.html"), "<h1>gallery</h1>")?;
         std::fs::write(dir.path().join("background.webp"), b"webp-bytes")?;
+        std::fs::create_dir_all(dir.path().join("ui/styles"))?;
+        std::fs::write(dir.path().join("ui/gallery.js"), "// gallery")?;
+        std::fs::write(dir.path().join("ui/styles/current.css"), "/* current */")?;
         Ok(dir)
     }
 
@@ -790,6 +809,42 @@ mod tests {
         let dir = static_root_fixture()?;
 
         let response = fetch(static_router(dir.path()), "/static/nope.webp").await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn ui_files_are_served_and_revalidated() -> Result<()> {
+        let dir = static_root_fixture()?;
+
+        let response = fetch(static_router(dir.path()), "/ui/gallery.js").await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL),
+            Some(&axum::http::HeaderValue::from_static(UI_CACHE_CONTROL))
+        );
+        assert_eq!(body_string(response).await?, "// gallery");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn nested_ui_files_are_served() -> Result<()> {
+        let dir = static_root_fixture()?;
+
+        let response = fetch(static_router(dir.path()), "/ui/styles/current.css").await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_string(response).await?, "/* current */");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_missing_ui_file_is_not_found() -> Result<()> {
+        let dir = static_root_fixture()?;
+
+        let response = fetch(static_router(dir.path()), "/ui/styles/nope.css").await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         Ok(())
