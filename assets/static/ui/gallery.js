@@ -264,6 +264,7 @@ async function applyStyle(id) {
         return true;
     } catch (error) {
         if (!reuse) link.remove();
+        if (token !== switchToken) return false;
         console.error('Could not load the gallery style', style.id, error);
         showPickerError(`Could not load ${style.name}`);
         return false;
@@ -359,8 +360,9 @@ function setupKeys() {
                 newer();
                 break;
             case ' ':
-                // Space on a focused button presses it
-                if (e.target instanceof HTMLButtonElement) return;
+                // Space presses the picker's buttons; a clicked nav button keeps
+                // focus, so exempting every button would break the toggle
+                if (e.target instanceof Element && e.target.closest('#pill')) return;
                 e.preventDefault();
                 toggleInfo();
                 break;
