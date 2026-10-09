@@ -2,6 +2,27 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v6.3.0 - 2026-10-09
+#### Features
+- (**server**) serve gallery ui files with revalidated caching - (4ac7e75) - Neale Swinnerton
+- (**web**) add the photo booth style - (2218a4c) - Neale Swinnerton
+- (**web**) add the darkroom style - (92def4b) - Neale Swinnerton
+- (**web**) add the newsroom style - (e6dff73) - Neale Swinnerton
+- (**web**) add the terminal style - (a634367) - Neale Swinnerton
+- (**web**) add the gallery wall style - (074713b) - Neale Swinnerton
+- (**web**) move the gallery to shared ui scripts and a current style - (d32ffb1) - Neale Swinnerton
+#### Bug Fixes
+- (**packaging**) skip hidden files when installing the static tree - (fbea704) - Neale Swinnerton
+- (**server**) revalidate the gallery page on every use - (5e8f8a1) - Neale Swinnerton
+- (**web**) keep fonts from breaking styles and fix gallery regressions - (a2cf68b) - Neale Swinnerton
+- (**web**) let each gallery style own its button and photo rules - (9b6c43b) - Neale Swinnerton
+- (**web**) keep space for the commit overlay after clicking an arrow - (185be5d) - Neale Swinnerton
+- (**web**) make arrow keys navigate chronologically - (923e575) - Neale Swinnerton
+#### Miscellaneous Chores
+- add .gitattributes - (9db7d9d) - Neale Swinnerton
+
+- - -
+
 ## v6.2.1 - 2026-09-24
 #### Bug Fixes
 - (**notify**) show the login-required notification as an error - (b26db42) - Neale Swinnerton
