@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v6.4.0 - 2026-11-02
+#### Features
+- (**web**) rename the current gallery style to plain and advertise h/l keys - (ced3c49) - Neale Swinnerton
+
+- - -
+
 ## v6.3.0 - 2026-10-09
 #### Features
 - (**server**) serve gallery ui files with revalidated caching - (4ac7e75) - Neale Swinnerton
