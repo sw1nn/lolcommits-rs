@@ -30,7 +30,8 @@ body {
 #stage .lower .sub .ins { color: #5ee08a; }
 #stage .lower .sub .del { color: #ff7a7a; }
 #stage .lower .sub .gap { flex: 1; }
-#stage .nav { position: absolute; top: 17cqw; width: 4.4cqw; height: 8cqw; background: rgb(255 255 255 / .1); color: #fff; font-size: 2.4cqw; font-weight: 800; }
+#stage .nav { position: absolute; top: 17cqw; width: 4.4cqw; height: 8cqw; background: rgb(255 255 255 / .1); color: #fff; font-size: 2.4cqw; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3cqw; line-height: 1; }
+#stage .nav .key { font-size: 1.1cqw; font-weight: 700; opacity: .7; }
 #stage .nav:hover:not(:disabled) { background: #e01e2b; }
 #stage .nav:disabled { opacity: .25; }
 #stage .nav.older { left: 4cqw; }

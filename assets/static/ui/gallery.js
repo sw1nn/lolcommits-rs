@@ -4,14 +4,14 @@
 
 // Keep in sync with KNOWN_STYLES in index.html.
 const STYLES = [
-    { id: 'current', name: 'Current', fixed: false },
+    { id: 'plain', name: 'Plain', fixed: false },
     { id: 'museum', name: 'Gallery wall', fixed: true },
     { id: 'news', name: 'Newsroom', fixed: true },
     { id: 'film', name: 'Darkroom', fixed: true },
     { id: 'booth', name: 'Photo booth', fixed: true },
     { id: 'term', name: 'Terminal', fixed: true },
 ];
-const DEFAULT_STYLE = 'current';
+const DEFAULT_STYLE = 'plain';
 const STORAGE_KEY = 'lolcommits.style';
 const STRIP_SIZE = 5;
 const TICKER_SIZE = 10;
@@ -383,6 +383,8 @@ function setupPicker() {
     });
 }
 
+// Every style routes its navigation through [data-nav], so these bindings work
+// whatever style is active. Each style's markup names them in its nav controls.
 function setupKeys() {
     document.addEventListener('keydown', e => {
         if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -392,7 +394,10 @@ function setupKeys() {
         }
         // The open menu handles its own keys
         if (e.target instanceof Element && e.target.closest('#pickerMenu')) return;
-        switch (e.key) {
+        // Caps Lock and Shift make e.key an upper-case letter; the bindings are
+        // case-insensitive
+        const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        switch (key) {
             case 'ArrowLeft':
             case 'h':
                 e.preventDefault();

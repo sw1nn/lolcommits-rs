@@ -766,7 +766,7 @@ mod tests {
         std::fs::write(dir.path().join("background.webp"), b"webp-bytes")?;
         std::fs::create_dir_all(dir.path().join("ui/styles"))?;
         std::fs::write(dir.path().join("ui/gallery.js"), "// gallery")?;
-        std::fs::write(dir.path().join("ui/styles/current.css"), "/* current */")?;
+        std::fs::write(dir.path().join("ui/styles/plain.css"), "/* plain */")?;
         Ok(dir)
     }
 
@@ -854,10 +854,10 @@ mod tests {
     async fn nested_ui_files_are_served() -> Result<()> {
         let dir = static_root_fixture()?;
 
-        let response = fetch(static_router(dir.path()), "/ui/styles/current.css").await;
+        let response = fetch(static_router(dir.path()), "/ui/styles/plain.css").await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(body_string(response).await?, "/* current */");
+        assert_eq!(body_string(response).await?, "/* plain */");
         Ok(())
     }
 

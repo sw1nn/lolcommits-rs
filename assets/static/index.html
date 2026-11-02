@@ -11,20 +11,20 @@
         // render-blocking, which an appended <link> is not.
         // Keep KNOWN_STYLES in sync with STYLES in /ui/gallery.js.
         (function () {
-            var KNOWN_STYLES = ['current', 'museum', 'news', 'film', 'booth', 'term'];
-            var id = 'current';
+            var KNOWN_STYLES = ['plain', 'museum', 'news', 'film', 'booth', 'term'];
+            var id = 'plain';
             try {
                 var saved = localStorage.getItem('lolcommits.style');
                 if (KNOWN_STYLES.indexOf(saved) >= 0) id = saved;
             } catch (e) {
                 // Storage can be blocked; the default style applies
             }
-            if (window.matchMedia('(max-width: 699px)').matches) id = 'current';
+            if (window.matchMedia('(max-width: 699px)').matches) id = 'plain';
             document.write('<link rel="stylesheet" id="style-css" data-style="' + id + '" href="/ui/styles/' + id + '.css">');
             // Web fonts are optional. media=print keeps this sheet from
             // blocking first paint, and from blocking it forever if Google is
             // unreachable; it switches to all once loaded.
-            if (id !== 'current') {
+            if (id !== 'plain') {
                 document.write('<link rel="stylesheet" id="style-fonts" href="/ui/styles/' + id + '.fonts.css" media="print" onload="this.media=\'all\'">');
             }
         })();
