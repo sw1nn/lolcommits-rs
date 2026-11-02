@@ -19,7 +19,6 @@
             } catch (e) {
                 // Storage can be blocked; the default style applies
             }
-            if (window.matchMedia('(max-width: 699px)').matches) id = 'plain';
             document.write('<link rel="stylesheet" id="style-css" data-style="' + id + '" href="/ui/styles/' + id + '.css">');
             // Web fonts are optional. media=print keeps this sheet from
             // blocking first paint, and from blocking it forever if Google is
@@ -46,8 +45,15 @@
             <span id="counterText"></span>
             <span class="new-images-badge" id="newImagesBadge" hidden>!</span>
         </span>
+        <button class="pill-button" id="infoButton" type="button" aria-label="Toggle commit info" aria-pressed="false" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4"/>
+                <path d="M12 8h.01"/>
+            </svg>
+        </button>
         <div class="picker" id="picker">
-            <button class="picker-button" id="pickerButton" type="button" aria-label="Style" aria-haspopup="menu" aria-expanded="false" aria-controls="pickerMenu">
+            <button class="pill-button" id="pickerButton" type="button" aria-label="Style" aria-haspopup="menu" aria-expanded="false" aria-controls="pickerMenu">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3Z"/>
                     <circle cx="7.5" cy="10.5" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/>

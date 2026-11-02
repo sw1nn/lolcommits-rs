@@ -232,9 +232,43 @@ body {
     .nav-button.prev { left: 1rem; }
     .nav-button.next { right: 1rem; }
 
+    /* Clear the fixed shell pill, which is wider with the info control */
+    .plain-header { padding: 4.5rem 1rem 1rem; }
     .plain-header h1 { font-size: 1.8rem; }
 
     .keyboard-hint { display: none; }
+
+    /* The desktop chyron places its parts absolutely for a wide frame; on a
+       phone that squeezes the title and stats into a few characters. */
+    .web-chyron {
+        height: auto;
+        padding: 0.6rem 0.75rem;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.15rem 0.5rem;
+    }
+
+    #stage .web-chyron > div {
+        position: static;
+        max-width: none;
+    }
+
+    .web-chyron .commit-title {
+        grid-column: 1;
+        font-size: 1rem;
+    }
+
+    .web-chyron .commit-revision {
+        grid-column: 2;
+        grid-row: 1;
+        font-size: 1.25rem;
+    }
+
+    .web-chyron .commit-info-line,
+    .web-chyron .commit-stats {
+        grid-column: 1 / -1;
+        font-size: 0.85rem;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

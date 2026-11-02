@@ -129,7 +129,7 @@ body {
     position: relative;
 }
 
-.picker-button {
+.pill-button {
     width: 2rem;
     height: 2rem;
     border-radius: 50%;
@@ -141,9 +141,17 @@ body {
     cursor: pointer;
 }
 
-.picker-button svg {
+.pill-button svg {
     width: 1.1rem;
     height: 1.1rem;
+}
+
+.pill-button[hidden] {
+    display: none;
+}
+
+.pill-button[aria-pressed="true"] {
+    background: color-mix(in srgb, currentColor 34%, transparent);
 }
 
 .picker-menu {
@@ -205,12 +213,8 @@ body {
 }
 
 @media (max-width: 699px) {
-    .picker {
-        display: none;
-    }
-
     .pill {
-        padding: 0.5rem 1rem;
+        padding: 0.5rem 0.5rem 0.5rem 1rem;
         top: 0.75rem;
         right: 0.75rem;
     }

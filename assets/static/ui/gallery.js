@@ -15,7 +15,6 @@ const DEFAULT_STYLE = 'plain';
 const STORAGE_KEY = 'lolcommits.style';
 const STRIP_SIZE = 5;
 const TICKER_SIZE = 10;
-const NARROW = window.matchMedia('(max-width: 699px)');
 
 const state = {
     images: [],
@@ -214,6 +213,7 @@ const newer = () => show(state.index - 1);
 function toggleInfo() {
     state.infoOn = !state.infoOn;
     stage().classList.toggle('info-on', state.infoOn);
+    document.getElementById('infoButton').setAttribute('aria-pressed', String(state.infoOn));
 }
 
 function savedStyle() {
@@ -232,8 +232,6 @@ function saveStyle(id) {
         console.error('Could not save the gallery style', error);
     }
 }
-
-const effectiveStyle = () => (NARROW.matches ? DEFAULT_STYLE : savedStyle());
 
 async function fetchFragment(id) {
     const response = await fetch(`/ui/styles/${id}.html`);
@@ -304,6 +302,7 @@ async function applyStyle(id) {
         hidePickerError();
         render();
         renderPicker();
+        renderInfoButton();
         applyFonts(style);
         return true;
     } catch (error) {
@@ -321,6 +320,15 @@ function pickerItems() {
 
 function renderPicker() {
     pickerItems().forEach(item => item.setAttribute('aria-checked', String(item.dataset.style === state.activeStyle)));
+}
+
+// Only the Plain style hides its metadata behind the toggle; a fixed style
+// shows it always, so the control is hidden there.
+function renderInfoButton() {
+    const style = STYLES.find(s => s.id === state.activeStyle);
+    const button = document.getElementById('infoButton');
+    button.hidden = style?.fixed !== false;
+    button.setAttribute('aria-pressed', String(state.infoOn));
 }
 
 function showPickerError(message) {
@@ -381,6 +389,10 @@ function setupPicker() {
     document.addEventListener('click', e => {
         if (!document.getElementById('picker').contains(e.target)) closePicker(false);
     });
+}
+
+function setupInfoButton() {
+    document.getElementById('infoButton').addEventListener('click', toggleInfo);
 }
 
 // Every style routes its navigation through [data-nav], so these bindings work
@@ -474,7 +486,7 @@ async function showGallery() {
     document.getElementById('error').hidden = true;
     stage().hidden = false;
     document.getElementById('pill').hidden = false;
-    if (!(await applyStyle(effectiveStyle())) && state.activeStyle === null) {
+    if (!(await applyStyle(savedStyle())) && state.activeStyle === null) {
         await applyStyle(DEFAULT_STYLE);
     }
     hideLoading();
@@ -502,9 +514,7 @@ async function boot() {
     setupKeys();
     setupStage();
     setupPicker();
-    NARROW.addEventListener('change', () => {
-        if (state.activeStyle !== null) applyStyle(effectiveStyle());
-    });
+    setupInfoButton();
     loadConfig();
     try {
         await loadImages();
