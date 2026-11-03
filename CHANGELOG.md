@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v6.5.0 - 2026-11-03
+#### Features
+- (**web**) navigate the gallery with horizontal swipes - (8b4c0be) - Neale Swinnerton
+
+- - -
+
 ## v6.4.1 - 2026-11-02
 #### Bug Fixes
 - (**web**) allow style selection and commit info on mobile - (5383f3d) - Neale Swinnerton
