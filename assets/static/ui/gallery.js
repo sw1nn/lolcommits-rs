@@ -15,6 +15,13 @@ const DEFAULT_STYLE = 'plain';
 const STORAGE_KEY = 'lolcommits.style';
 const STRIP_SIZE = 5;
 const TICKER_SIZE = 10;
+// A swipe counts as navigation once it travels this far horizontally and this
+// many times further than it travels vertically, so scrolls are left alone.
+const SWIPE_MIN_DISTANCE = 40;
+const SWIPE_AXIS_RATIO = 1.5;
+// The click a browser synthesises at the end of a swipe arrives inside this
+// window and presses whatever the finger started on.
+const SWIPE_CLICK_GRACE_MS = 400;
 
 const state = {
     images: [],
@@ -27,6 +34,8 @@ const state = {
 
 const preloaded = new Map();
 let switchToken = 0;
+let swipeStart = null;
+let swipeEndedAt = -Infinity;
 
 const stage = () => document.getElementById('stage');
 
@@ -431,8 +440,35 @@ function setupKeys() {
     });
 }
 
+// Touch devices have no arrow keys. A swipe moves the gallery as if it were
+// dragged with the finger: rightwards brings the older commit in from the left,
+// leftwards brings the newer one in from the right.
+function setupSwipes() {
+    stage().addEventListener('pointerdown', e => {
+        if (e.pointerType !== 'touch' || !e.isPrimary) return;
+        // The pill keeps its own taps
+        if (e.target instanceof Element && e.target.closest('#pill')) return;
+        swipeStart = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    });
+    // Bound to the document, so a swipe that ends off the stage still counts
+    document.addEventListener('pointerup', e => {
+        if (!swipeStart || e.pointerId !== swipeStart.id) return;
+        const dx = e.clientX - swipeStart.x;
+        const dy = e.clientY - swipeStart.y;
+        swipeStart = null;
+        if (Math.abs(dx) < SWIPE_MIN_DISTANCE) return;
+        if (Math.abs(dx) < Math.abs(dy) * SWIPE_AXIS_RATIO) return;
+        swipeEndedAt = performance.now();
+        if (dx < 0) newer();
+        else older();
+    });
+    // A vertical scroll hands the gesture to the browser and cancels it
+    document.addEventListener('pointercancel', () => { swipeStart = null; });
+}
+
 function setupStage() {
     stage().addEventListener('click', e => {
+        if (performance.now() - swipeEndedAt < SWIPE_CLICK_GRACE_MS) return;
         if (!(e.target instanceof Element)) return;
         const nav = e.target.closest('[data-nav]');
         if (nav && !nav.disabled) {
@@ -512,6 +548,7 @@ function setupSSE() {
 
 async function boot() {
     setupKeys();
+    setupSwipes();
     setupStage();
     setupPicker();
     setupInfoButton();

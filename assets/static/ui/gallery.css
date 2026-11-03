@@ -13,6 +13,13 @@ body {
     color: #fff;
 }
 
+/* Horizontal gestures drive the swipe navigation, so they are never spent on
+   scrolling or overscroll navigation; vertical panning and pinch zoom stay with
+   the browser. */
+:where(#stage) {
+    touch-action: pan-y pinch-zoom;
+}
+
 /* Style CSS sets #stage's display, which would otherwise beat [hidden] */
 #stage[hidden] {
     display: none !important;
